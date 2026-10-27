@@ -24,8 +24,12 @@ const goto = async (h) => { await page.goto(BASE + "#/" + h); await page.waitFor
 await goto("inicio");
 await page.locator("h1", { hasText: "Visão geral" }).waitFor();
 await full("01-inicio-vazio");
-ok(await page.getByText("Ainda não há resultados para mostrar").isVisible(), "visão geral vazia mostra estado inicial (sem gráficos falsos)");
-ok(await page.getByText("Custo unitário da placa não informado").isVisible(), "pendência de custo unitário sinalizada");
+ok(await page.getByText("Registre sua primeira visita").isVisible(), "início vazio mostra estado inicial (sem números inventados)");
+await page.getByRole("button", { name: /dados pendentes/ }).click();
+ok(await page.getByRole("button", { name: /^Custo unitário da placa não informado/ }).isVisible(), "pendência de custo unitário sinalizada");
+await goto("relatorios");
+await page.locator("h1", { hasText: "Relatórios" }).waitFor();
+ok(await page.getByText("Ainda não há resultados para mostrar").isVisible(), "relatórios vazios sem gráficos falsos");
 
 // Importação
 await goto("importar");
@@ -97,11 +101,16 @@ await full("07-vendas");
 ok(await page.getByText("R$ 139,80").first().isVisible(), "venda de 2 placas = R$ 139,80 na lista");
 
 await goto("inicio");
-await page.getByRole("radio", { name: "Hoje", exact: true }).click();
-await page.waitForTimeout(500);
+await page.waitForTimeout(700);
 await full("08-inicio-com-dados");
-ok(await page.getByText("R$ 139,80").first().isVisible(), "faturamento de hoje atualizado");
-ok((await page.getByText("Pendente").count()) > 0, "margem mostra 'Pendente' sem custo unitário");
+ok(await page.getByText("R$ 139,80").first().isVisible(), "faturamento de hoje atualizado no início");
+ok(await page.getByText("Margem e resultado de hoje").isVisible() && (await page.getByText("Pendente").count()) > 0, "início: margem 'Pendente' sem custo unitário");
+await goto("relatorios");
+await page.getByRole("radio", { name: "Hoje", exact: true }).click();
+await page.waitForTimeout(600);
+await full("08b-relatorios-com-dados");
+ok(await page.getByText("R$ 139,80").first().isVisible(), "relatórios: faturamento de hoje");
+ok((await page.getByText("Pendente").count()) > 0, "relatórios: margem 'Pendente' sem custo unitário");
 
 await goto("financas/resumo"); await page.getByRole("radio", { name: "Hoje", exact: true }).click(); await page.waitForTimeout(300); await full("09-financas-resumo");
 await goto("financas/custos"); await full("10-financas-custos");
@@ -117,17 +126,20 @@ await goto("configuracoes");
 await page.getByRole("radio", { name: "Ver demonstração" }).click();
 await page.waitForTimeout(1200);
 await goto("inicio");
-await page.getByRole("radio", { name: "Últimos 30 dias" }).click();
 await page.waitForTimeout(600);
 ok(await page.getByText(/MODO DEMONSTRAÇÃO/).isVisible(), "banner de demonstração visível");
 await full("16-inicio-demonstracao");
+await goto("relatorios");
+await page.getByRole("radio", { name: "Últimos 30 dias" }).click();
+await page.waitForTimeout(800);
+await full("16b-relatorios-demonstracao");
 await goto("inteligencia"); await page.getByRole("radio", { name: "Últimos 30 dias" }).click(); await page.waitForTimeout(400); await full("17-inteligencia-demo");
 await goto("configuracoes");
 await page.getByRole("button", { name: "Remover demonstração" }).click();
 await page.getByRole("button", { name: "Remover", exact: true }).click();
 await page.waitForTimeout(600);
 await goto("inicio");
-await page.getByRole("radio", { name: "Hoje", exact: true }).click();
+await page.waitForTimeout(700);
 ok(!(await page.getByText(/MODO DEMONSTRAÇÃO/).isVisible()), "voltou aos dados reais");
 ok(await page.getByText("R$ 139,80").first().isVisible(), "dados reais intactos após remover demonstração");
 

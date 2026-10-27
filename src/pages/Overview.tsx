@@ -1,229 +1,301 @@
-import { useMemo } from "react";
-import { BarChart3, Footprints, AlertCircle, FileUp, Wallet, ChevronRight, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  AlertCircle, BadgeDollarSign, BarChart3, CalendarClock, ChevronDown, ChevronRight, ClipboardCheck, FileUp, Footprints, MapPinned,
+  Navigation, Percent, Receipt, Target, TrendingUp, Wallet,
+} from "lucide-react";
 import type { AppData } from "@/hooks/useData";
 import type { Dataset } from "@/lib/finance/engine";
-import { aggregate, projectMonth } from "@/lib/finance/engine";
-import { transportBudget } from "@/lib/finance/transport";
-import { breakdown } from "@/lib/finance/intel";
-import { useMetrics, goalPeriodOf, evalFor } from "@/hooks/useMetrics";
-import { usePeriod } from "@/hooks/usePeriod";
-import { periodRange, PERIOD_LABELS, fmtLong, type PeriodKey } from "@/lib/dates";
+import { aggregate, dailySeries } from "@/lib/finance/engine";
+import { pendingFollowUps } from "@/lib/finance/intel";
+import { evalFor } from "@/hooks/useMetrics";
+import { findRule, type Light } from "@/lib/finance/goals";
+import { dayKey, fmtLong, fmtWeekdayShort, periodRange } from "@/lib/dates";
 import { formatBRL, formatPct } from "@/lib/money";
+import { mapsNavUrl, placeQuery } from "@/lib/maps";
 import type { Settings } from "@/db/types";
-import { Kpi } from "@/components/Kpi";
-import { Badge, Button, Card, Chips, EmptyState, LightBadge, Progress, SectionTitle, Stat } from "@/components/ui";
-import { RevenueChart, ContributionChart, OrdersUnitsChart, ConversionChart, RevenueVsCostsChart, GoalChart, HBarChart } from "@/components/charts/Charts";
+import { updateStop } from "@/db/actions";
 import { go } from "@/hooks/useHashRoute";
 import { useUI } from "@/components/UIProvider";
-import { findRule } from "@/lib/finance/goals";
+import { AnimatedNumber, Button, Card, EmptyState, LightBadge, Progress, ProgressRing, LIGHT_STYLE } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { pendingItems } from "@/lib/pending";
 
-export const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = (["hoje", "ontem", "semana", "7d", "mes", "mes_passado", "30d", "tudo"] as PeriodKey[]).map((k) => ({ value: k, label: PERIOD_LABELS[k] }));
-
-export function PeriodPicker({ value, onChange }: { value: PeriodKey; onChange: (p: PeriodKey) => void }) {
-  return (
-    <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <Chips size="sm" className="flex-nowrap" options={PERIOD_OPTIONS} value={value} onChange={onChange} />
-    </div>
-  );
-}
-
+/**
+ * Início: só o que importa na rua, hoje. Métricas do período, rentabilidade detalhada
+ * e gráficos ficam em Relatórios (#/relatorios), Finanças e Análises.
+ */
 export function Overview({ data, ds, settings }: { data: AppData; ds: Dataset; settings: Settings }) {
-  const [period, setPeriod] = usePeriod("semana");
-  const m = useMetrics(ds, period);
   const ui = useUI();
   const today = useMemo(() => aggregate(ds, periodRange("hoje")), [ds]);
-  const total = useMemo(() => aggregate(ds, periodRange("tudo")), [ds]);
-  const proj = useMemo(() => projectMonth(ds, new Date(), settings.workWeekdays), [ds, settings.workWeekdays]);
-  const budget = useMemo(() => transportBudget(settings.uberBudget, data.expenses, data.routes, settings.transportBudgetSince ?? undefined), [settings.uberBudget, data.expenses, data.routes]);
-  const regions = useMemo(() => (m ? breakdown(ds, data.establishments, m.range, "region", settings.minSample) : []), [ds, data.establishments, m, settings.minSample]);
-  const segments = useMemo(() => (m ? breakdown(ds, data.establishments, m.range, "segment", settings.minSample) : []), [ds, data.establishments, m, settings.minSample]);
-  if (!m) return null;
-  const s = m.summary;
-  const p = m.prev;
-  const gp = goalPeriodOf(m.granularity, period);
-  const ev = (k: string) => evalFor(k, data.goals, gp, s, budget.usedPct);
-  const visitsToday = evalFor("visitas", data.goals, "dia", today);
-  const revenueToday = evalFor("faturamento", data.goals, "dia", today);
-  const hasSales = data.sales.some((x) => x.status === "ativa");
-  const hasVisits = data.visits.length > 0;
+  const week = useMemo(() => dailySeries(ds, periodRange("7d")), [ds]);
+  const follow = useMemo(() => pendingFollowUps(data.visits, data.sales, data.establishments), [data.visits, data.sales, data.establishments]);
   const pending = pendingItems(data, settings);
-  const periodLabel = m.label.toLowerCase();
+
+  const revenueRule = findRule(data.goals, "faturamento", "dia");
   const visitRule = findRule(data.goals, "visitas", "dia");
-  const convRule = gp ? findRule(data.goals, "conversao", gp) : undefined;
+  const revenueEval = evalFor("faturamento", data.goals, "dia", today);
+  const visitsEval = evalFor("visitas", data.goals, "dia", today);
+  const convEval = evalFor("conversao", data.goals, "dia", today);
+  const ticketEval = evalFor("ticket_medio", data.goals, "dia", today);
+
+  const everVisited = data.visits.length > 0;
+  const everSold = data.sales.some((s) => s.status === "ativa");
+
+  // Anel do hero: meta diária de faturamento; sem ela, meta diária de visitas.
+  const ring = revenueRule?.target
+    ? { value: today.net / (revenueRule.target * 100), light: revenueEval?.light ?? "sem_meta", text: `meta ${formatBRL(revenueRule.target * 100)}`, label: "Meta diária de faturamento" }
+    : visitRule?.target
+      ? { value: today.visitsRealized / visitRule.target, light: today.visitsRealized ? visitsEval?.light ?? "sem_meta" : "sem_dados", text: `${today.visitsRealized}/${visitRule.target} visitas`, label: "Meta diária de visitas" }
+      : null;
 
   return (
     <div className="space-y-4">
       {/* Hoje */}
-      <section className="card gradient-hero overflow-hidden p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-muted">Hoje · {fmtLong(new Date())}</div>
-            <div className="mt-1 text-[34px] font-black leading-10 tracking-tight tabular">{formatBRL(today.net)}</div>
-            <div className="text-sm text-muted">faturamento de hoje · {formatBRL(today.received)} recebido</div>
+      <section className="card gradient-hero relative overflow-hidden p-5">
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold text-muted first-letter:uppercase">{fmtLong(new Date())}</div>
+            <div className="mt-2 text-[13px] font-semibold text-muted">Faturamento hoje</div>
+            <AnimatedNumber value={today.net} format={formatBRL} className="block text-[38px] font-black leading-[44px] tracking-tight" />
+            <div className="mt-0.5 text-sm text-muted"><span className="tabular font-semibold text-foreground">{formatBRL(today.received)}</span> recebido</div>
           </div>
-          {revenueToday && <LightBadge light={revenueToday.light} label={revenueToday.light === "sem_meta" ? "Sem meta diária" : revenueToday.label} />}
+          {ring ? (
+            <ProgressRing value={ring.value} light={ring.light as Light} size={76} label={ring.label}>
+              <span className="text-[15px] font-black tabular">{Math.min(999, Math.round(Math.max(0, ring.value) * 100))}%</span>
+            </ProgressRing>
+          ) : null}
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <Stat label="Placas" value={today.unitsSold} sub={`${today.ordersRecognized} pedido(s)`} />
-          <Stat label="Visitas" value={today.visitsRealized} sub={visitRule?.target ? `meta ${visitRule.target}` : "sem meta"} />
-          <Stat label="Despesas" value={formatBRL(today.opExpenses + today.transportLinked)} sub="pagas hoje" />
-        </div>
-        {visitsToday && visitRule?.target != null && (
-          <div className="mt-3">
-            <div className="mb-1 flex justify-between text-xs text-muted"><span>Meta diária de visitas</span><span className="tabular">{today.visitsRealized}/{visitRule.target}</span></div>
-            <Progress value={today.visitsRealized / visitRule.target} light={today.visitsRealized === 0 ? "sem_dados" : visitsToday.light} label="Meta diária de visitas" />
+        {ring ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>{ring.label}: {ring.text}</span>
+            {(revenueRule?.target ? revenueEval : visitsEval) && <LightBadge light={ring.light as Light} label={(revenueRule?.target ? revenueEval : visitsEval)!.label} />}
           </div>
+        ) : (
+          <button type="button" onClick={() => go("metas")} className="press mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary"><Target className="h-3.5 w-3.5" />Definir meta diária</button>
         )}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
-          <Button variant="primary" onClick={() => ui.openSale()}>Registrar venda</Button>
-          <Button onClick={() => (ui.nextStop ? go(`rotas/${ui.nextStop.routeId}/${ui.nextStop.stop.id}`) : go("rotas"))}><Footprints className="h-4 w-4" />{ui.nextStop ? "Próxima parada" : "Ver rotas"}</Button>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button variant="primary" size="lg" onClick={() => ui.openSale(ui.nextStop?.stop.status === "a_caminho" ? { establishmentId: ui.nextStop.stop.establishmentId, stopId: ui.nextStop.stop.id, routeId: ui.nextStop.routeId } : {})}>
+            <BadgeDollarSign className="h-5 w-5" />Vender
+          </Button>
+          <Button size="lg" onClick={() => (ui.nextStop ? ui.openStopStatus(ui.nextStop.stop) : ui.openVisit())}>
+            <ClipboardCheck className="h-5 w-5" />Visita
+          </Button>
         </div>
       </section>
 
-      {pending.length > 0 && (
-        <Card title="Dados pendentes" subtitle="Sem eles, os resultados aparecem como estimativa incompleta.">
-          <ul className="space-y-2">
-            {pending.map((x) => (
-              <li key={x.text}>
-                <button type="button" onClick={() => go(x.to)} className="press flex w-full items-center gap-3 rounded-xl bg-surface-raised px-3 py-2.5 text-left text-sm">
-                  <AlertCircle className={cn("h-4 w-4 shrink-0", x.tone === "bad" ? "text-bad" : "text-warn")} />
-                  <span className="flex-1">{x.text}</span>
-                  <ChevronRight className="h-4 w-4 text-subtle" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <NextAction data={data} follow={follow} pendingCost={pending.some((p) => p.tone === "bad") && everSold} />
 
-      <PeriodPicker value={period} onChange={setPeriod} />
-
-      <SectionTitle>Vendas · {periodLabel}</SectionTitle>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Kpi label="Faturamento" f="brl" metric={{ value: s.net, state: s.ordersRecognized || s.refunds ? "ok" : "sem_dados", reason: "Nenhuma venda entregue no período" }} prev={p && { value: p.net, state: "ok" }} period={m.label} evaluation={ev("faturamento")}
-          definition="Receita líquida reconhecida: placas entregues × preço − descontos − estornos. Não é lucro." />
-        <Kpi label="Dinheiro recebido" f="brl" metric={{ value: s.received, state: "ok" }} prev={p && { value: p.received, state: "ok" }} period={m.label}
-          definition={`Pagamentos efetivamente recebidos no período (devoluções descontadas). Vendas pendentes não entram. A receber (todas as vendas): ${formatBRL(s.receivables)}.`} />
-        <Kpi label="Placas vendidas" f="int" metric={{ value: s.unitsSold, state: "ok" }} prev={p && { value: p.unitsSold, state: "ok" }} period={m.label} evaluation={ev("placas")}
-          definition="Unidades entregues, descontadas as devoluções." />
-        <Kpi label="Pedidos" f="int" metric={{ value: s.ordersRecognized, state: "ok" }} prev={p && { value: p.ordersRecognized, state: "ok" }} period={m.label}
-          definition={`Pedidos válidos entregues (não confunda com placas). Contratados no período: ${s.contractedOrders} (${formatBRL(s.contractedValue)}).`} />
-        <Kpi label="Ticket médio" f="brl" metric={s.ticket} prev={p?.ticket ?? null} period={m.label} evaluation={ev("ticket_medio")}
-          definition="Receita líquida ÷ número de pedidos." />
-        <Kpi label="Receita por placa" f="brl" metric={s.revenuePerUnit} prev={p?.revenuePerUnit ?? null} period={m.label}
-          definition="Receita líquida ÷ placas vendidas." />
-      </div>
-
-      <SectionTitle>Rentabilidade · {periodLabel}</SectionTitle>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Kpi label="Custo das placas (CPV)" f="brl" metric={s.cogs} pendingLabel={`${s.costPendingSales} venda(s) sem custo; custo conhecido`} prev={p?.cogs ?? null} higherIsBetter={false} period={m.label}
-          definition="Custo unitário aplicado em cada venda × placas que saíram do estoque. Compras de estoque não entram aqui de novo (já viram CPV quando vendidas)." />
-        <Kpi label="Margem de contribuição" f="brl" metric={s.contribution} prev={p?.contribution ?? null} period={m.label}
-          definition="Receita líquida − CPV − taxas, comissões, tributos variáveis, outros custos do pedido e transporte vinculado às vendas. Não desconta despesas fixas.">
-          <div className="mt-1 text-xs text-muted">{s.contributionPct.state === "sem_dados" ? "—" : s.contributionPct.state === "pendente" ? "% indisponível até informar o custo" : `${formatPct(s.contributionPct.value)} da receita`}</div>
-          {ev("margem_contribuicao_pct") && <div className="mt-1"><LightBadge light={ev("margem_contribuicao_pct")!.light} label={`Margem: ${ev("margem_contribuicao_pct")!.label}`} /></div>}
-        </Kpi>
-        <Kpi label="Despesas operacionais" f="brl" metric={{ value: s.opExpenses, state: "ok" }} prev={p && { value: p.opExpenses, state: "ok" }} higherIsBetter={false} period={m.label}
-          definition={`Despesas pagas não vinculadas a vendas (Uber, alimentação, materiais…). Previstas (estimativas) não entram: ${formatBRL(s.plannedExpenses)}.`} />
-        <Kpi label="Resultado operacional" f="brl" metric={s.opResult} pendingLabel="sem custo das placas" prev={p?.opResult ?? null} period={m.label} evaluation={ev("resultado_operacional")}
-          definition="Margem de contribuição − despesas operacionais do período. Estimativa gerencial: não é lucro líquido contábil nem após impostos." />
-        <Kpi label="Resultado acumulado" f="brl" metric={total.opResult} period="Todo o histórico"
-          definition="Resultado operacional estimado desde o primeiro registro." />
-        <Kpi label="Despesas de hoje" f="brl" metric={{ value: today.opExpenses + today.transportLinked, state: "ok" }} higherIsBetter={false} period="Hoje"
-          definition="Despesas pagas hoje, incluindo transporte vinculado a vendas." />
-      </div>
-
-      <SectionTitle>Comercial · {periodLabel}</SectionTitle>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Kpi label="Visitas realizadas" f="int" metric={{ value: s.visitsRealized, state: "ok" }} prev={p && { value: p.visitsRealized, state: "ok" }} period={m.label} evaluation={ev("visitas")}
-          definition={`Paradas com desfecho (visitado, ausente, conversa, interessado, retornar, venda, sem interesse). Pendentes e "a caminho" não contam. Estabelecimento fechado: ${s.visitsClosedPlace} (fora do cálculo).`} />
-        <Kpi label="Vendas fechadas" f="int" metric={{ value: s.salesFromVisits, state: "ok" }} prev={p && { value: p.salesFromVisits, state: "ok" }} period={m.label}
-          definition="Pedidos válidos vinculados a uma visita registrada." />
-        <Kpi label="Conversão" f="pct" metric={s.conversion} prev={p?.conversion ?? null} period={m.label} evaluation={ev("conversao")} className="col-span-2 lg:col-span-1"
-          definition="Vendas fechadas em visitas ÷ visitas realizadas × 100." />
-      </div>
-
-      <SectionTitle>Projeção do mês</SectionTitle>
-      <Card>
-        {proj.projectedNet == null ? (
-          <p className="text-sm text-muted">{proj.note}</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="Realizado no mês" value={formatBRL(proj.mtdNet)} sub="faturamento" />
-              <Stat label="Projeção faturamento" value={formatBRL(proj.projectedNet)} sub="fim do mês" />
-              <Stat label="Projeção contribuição" value={proj.projectedContribution == null ? "Pendente" : formatBRL(proj.projectedContribution)} sub={proj.projectedContribution == null ? "falta custo unitário" : "fim do mês"} />
-              <Stat label="Projeção resultado" value={proj.projectedResult == null ? "Pendente" : formatBRL(proj.projectedResult)} tone={proj.projectedResult != null && proj.projectedResult < 0 ? "bad" : undefined} sub="operacional estimado" />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <Badge tone={proj.confidence === "moderada" ? "primary" : "warn"}>Confiança {proj.confidence}</Badge>
-              <span>{proj.note}</span>
-            </div>
-          </>
-        )}
-      </Card>
-
-      <SectionTitle>Gráficos · {periodLabel}</SectionTitle>
-      {!hasSales && !hasVisits ? (
+      {!everVisited && !everSold ? (
         <Card>
-          <EmptyState icon={BarChart3} title="Ainda não há resultados para mostrar"
-            action={<div className="flex flex-wrap justify-center gap-2"><Button variant="primary" onClick={() => go("importar")}><FileUp className="h-4 w-4" />Importar roteiros</Button><Button onClick={() => go("rotas")}>Abrir rotas</Button></div>}>
-            Os gráficos aparecem quando houver registros reais: <strong>marque o status das paradas</strong> (cada toque vira uma visita) e <strong>registre vendas</strong>. Para visualizar o painel completo antes disso, ative os dados de demonstração em Configurações.
+          <EmptyState icon={ClipboardCheck} title="Registre sua primeira visita"
+            action={<div className="flex flex-wrap justify-center gap-2">
+              {data.establishments.length ? <Button variant="primary" onClick={() => go("rotas")}><MapPinned className="h-4 w-4" />Abrir rotas</Button> : <Button variant="primary" onClick={() => go("importar")}><FileUp className="h-4 w-4" />Importar os 88</Button>}
+              <Button onClick={() => ui.openVisit()}><Footprints className="h-4 w-4" />Visita avulsa</Button>
+            </div>}>
+            Cada toque no status de uma parada vira uma visita. Vendas, conversão e ticket médio aparecem aqui assim que houver registros reais. Nenhum número é inventado.
           </EmptyState>
         </Card>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          <ChartCard title="Faturamento diário" empty={!hasSales} emptyText="Registre vendas para ver o faturamento por dia."><RevenueChart data={m.series} /></ChartCard>
-          <ChartCard title="Contribuição diária" subtitle="Cinza = custo das placas pendente" empty={!hasSales} emptyText="Registre vendas para ver a contribuição."><ContributionChart data={m.series} /></ChartCard>
-          <ChartCard title="Pedidos e placas por dia" empty={!hasSales} emptyText="Registre vendas para comparar pedidos e placas."><OrdersUnitsChart data={m.series} /></ChartCard>
-          <ChartCard title="Conversão de visitas em vendas" empty={!hasVisits} emptyText="Marque o status das paradas para medir a conversão."><ConversionChart data={m.series} target={convRule?.green ?? convRule?.target ?? null} /></ChartCard>
-          <ChartCard title="Faturamento × custos" empty={!hasSales} emptyText="Registre vendas e despesas para comparar."><RevenueVsCostsChart data={m.series} /></ChartCard>
-          <ChartCard title="Evolução da meta de visitas" subtitle={visitRule?.target ? `Meta diária: ${visitRule.target}` : "Sem meta diária definida"} empty={!hasVisits} emptyText="Sem visitas registradas.">
-            <GoalChart data={m.series.map((d) => ({ day: d.day, value: d.visits }))} target={visitRule?.target ?? null} label="Visitas" />
-          </ChartCard>
-          <ChartCard title="Faturamento por região" subtitle="n = visitas realizadas" empty={!regions.some((r) => r.net > 0)} emptyText="Sem vendas no período.">
-            <HBarChart rows={regions.filter((r) => r.net > 0 || r.visits > 0).slice(0, 8).map((r) => ({ label: r.label, value: r.net, n: r.visits, dim: !r.sufficient }))} valueLabel="Faturamento" f={(v) => formatBRL(v)} />
-          </ChartCard>
-          <ChartCard title="Faturamento por categoria" subtitle={`Barras cinza: amostra < ${settings.minSample} visitas`} empty={!segments.some((r) => r.net > 0)} emptyText="Sem vendas no período.">
-            <HBarChart rows={segments.filter((r) => r.net > 0 || r.visits > 0).slice(0, 9).map((r) => ({ label: r.label, value: r.net, n: r.visits, dim: !r.sufficient }))} valueLabel="Faturamento" f={(v) => formatBRL(v)} />
-          </ChartCard>
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Tile icon={BadgeDollarSign} label="Vendas hoje" value={String(today.ordersRecognized)} sub={`${today.unitsSold} ${today.unitsSold === 1 ? "placa" : "placas"}`} onClick={() => go("vendas")} />
+            <Tile icon={Footprints} label="Visitas hoje" value={String(today.visitsRealized)} sub={visitRule?.target ? `meta ${visitRule.target}` : "sem meta diária"}
+              light={today.visitsRealized ? visitsEval?.light : undefined} lightLabel={visitsEval?.label} progress={visitRule?.target ? today.visitsRealized / visitRule.target : null} onClick={() => go("rotas")} />
+            <Tile icon={Percent} label="Conversão" value={today.conversion.state === "ok" && today.conversion.value != null ? formatPct(today.conversion.value) : "—"}
+              sub={today.visitsRealized ? `${today.salesFromVisits} de ${today.visitsRealized} visitas` : "sem visitas hoje"} light={today.conversion.state === "ok" ? convEval?.light : undefined} lightLabel={convEval?.label} onClick={() => go("inteligencia")} />
+            <Tile icon={Receipt} label="Ticket médio" value={today.ticket.state === "ok" && today.ticket.value != null ? formatBRL(Math.round(today.ticket.value)) : "—"}
+              sub={today.ordersRecognized ? "por pedido hoje" : "sem vendas hoje"} light={today.ticket.state === "ok" ? ticketEval?.light : undefined} lightLabel={ticketEval?.label} onClick={() => go("vendas")} />
+          </div>
+
+          <Profit today={today} hasSalesToday={today.ordersRecognized > 0} />
+
+          {everSold && <WeekBars days={week} />}
+        </>
       )}
 
-      <Card className="flex items-center gap-3">
-        <Wallet className="h-5 w-5 text-primary" />
-        <div className="min-w-0 flex-1 text-sm">
-          <div className="font-semibold">Orçamento de transporte</div>
-          <div className="text-xs text-muted">{formatBRL(budget.paid)} pago + {formatBRL(budget.planned)} previsto de {formatBRL(budget.budget)} · saldo {formatBRL(budget.balance)}</div>
-          <Progress className="mt-2" value={budget.usedPct == null ? null : budget.usedPct / 100} light={evalFor("orcamento_transporte", data.goals, "total", s, budget.usedPct)?.light ?? "sem_meta"} label="Uso do orçamento de transporte" />
-        </div>
-        <Button size="sm" onClick={() => go("financas/transporte")}>Ver</Button>
-      </Card>
-      <p className="px-1 text-center text-xs text-subtle"><Sparkles className="mr-1 inline h-3.5 w-3.5" />Toque no ⓘ de qualquer card para ver a fórmula, o período e a regra do semáforo.</p>
+      {pending.length > 0 && <PendingData items={pending} />}
+
+      <button type="button" onClick={() => go("relatorios")} className="card press flex w-full items-center gap-3 p-4 text-left">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary-soft text-primary"><BarChart3 className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold">Relatórios completos</span>
+          <span className="block text-xs text-muted">Períodos, comparação, rentabilidade, projeção e gráficos</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-subtle" />
+      </button>
     </div>
   );
 }
 
-function ChartCard({ title, subtitle, empty, emptyText, children }: { title: string; subtitle?: string; empty: boolean; emptyText: string; children: React.ReactNode }) {
+function Tile({ icon: Icon, label, value, sub, light, lightLabel, progress, onClick }: {
+  icon: typeof Target; label: string; value: string; sub: string; light?: Light; lightLabel?: string; progress?: number | null; onClick: () => void;
+}) {
+  const showLight = light === "verde" || light === "amarelo" || light === "vermelho";
+  const L = showLight ? LIGHT_STYLE[light] : null;
   return (
-    <Card title={title} subtitle={subtitle}>
-      {empty ? <div className="grid h-[180px] place-items-center rounded-xl border border-dashed border-border px-6 text-center text-sm text-subtle">{emptyText}</div> : children}
-    </Card>
+    <button type="button" onClick={onClick} className="card press relative flex min-h-[124px] flex-col overflow-hidden p-4 text-left animate-slide-up">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-muted"><Icon className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{label}</span></span>
+        {L && <L.Icon className={cn("h-4 w-4 shrink-0", `text-${L.tone}`)} aria-label={lightLabel} />}
+      </div>
+      <div className="mt-2 truncate text-[26px] font-extrabold leading-8 tracking-tight tabular">{value}</div>
+      <div className="mt-auto truncate pt-1 text-xs text-subtle">{showLight && lightLabel ? <span className={`font-semibold text-${L!.tone}`}>{lightLabel} · </span> : null}{sub}</div>
+      {progress != null && <Progress className="mt-2 h-1.5" value={progress} light={light ?? "sem_meta"} label={`Progresso: ${label}`} />}
+    </button>
   );
 }
 
-export function pendingItems(data: AppData, settings: Settings) {
-  const out: { text: string; to: string; tone: "warn" | "bad" }[] = [];
-  const profile = [...data.costProfiles].sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0];
-  const placa = profile?.components.find((c) => c.key === "placa")?.amount ?? null;
-  const lotWithCost = data.stockLots.some((l) => l.totalPaid != null);
-  if (placa == null && !lotWithCost) out.push({ text: "Custo unitário da placa não informado (margens e lucro ficam pendentes)", to: "financas/custos", tone: "bad" });
-  const costPending = data.sales.filter((s) => s.status === "ativa" && s.items.some((i) => i.unitCost == null)).length;
-  if (costPending) out.push({ text: `${costPending} venda(s) com custo pendente: aplicar custo informado`, to: "financas/custos", tone: "warn" });
-  const feeUnknown = settings.paymentMethods.filter((m) => m.active && m.feePct == null).map((m) => m.label);
-  if (feeUnknown.length) out.push({ text: `Taxas não informadas: ${feeUnknown.join(", ")}`, to: "configuracoes", tone: "warn" });
-  if (!data.stockLots.length) out.push({ text: "Estoque não cadastrado (quantidade inicial e lotes)", to: "financas/estoque", tone: "warn" });
-  if (!data.establishments.length) out.push({ text: "Nenhum estabelecimento: importe os 88 do roteiro", to: "importar", tone: "warn" });
-  return out;
+/** Resultado e margem só aparecem com dados suficientes (vendas hoje e custo conhecido). */
+function Profit({ today, hasSalesToday }: { today: ReturnType<typeof aggregate>; hasSalesToday: boolean }) {
+  if (!hasSalesToday) return null;
+  if (today.contribution.state !== "ok" || today.contribution.value == null) {
+    return (
+      <button type="button" onClick={() => go("financas/custos")} className="card press flex w-full items-center gap-3 p-4 text-left">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-neutral-soft text-neutral"><Wallet className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] font-semibold text-muted">Margem e resultado de hoje</span>
+          <span className="block font-bold text-neutral">Pendente</span>
+          <span className="block text-xs text-subtle">Informe o custo da placa para calcular. Nada é estimado sem ele.</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-subtle" />
+      </button>
+    );
+  }
+  const pct = today.contributionPct.state === "ok" ? today.contributionPct.value : null;
+  const res = today.opResult.state === "ok" ? today.opResult.value : null;
+  return (
+    <section className="card p-4 animate-slide-up">
+      <div className="flex items-center gap-1.5 text-[12px] font-semibold text-muted"><TrendingUp className="h-4 w-4 text-primary" />Rentabilidade de hoje</div>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs text-subtle">Margem de contribuição</div>
+          <div className={cn("text-xl font-extrabold tabular", today.contribution.value < 0 && "text-bad")}>{formatBRL(today.contribution.value)}</div>
+          {pct != null && <div className="text-xs text-muted tabular">{formatPct(pct)} da receita</div>}
+        </div>
+        <div>
+          <div className="text-xs text-subtle">Resultado operacional</div>
+          <div className={cn("text-xl font-extrabold tabular", res != null && res < 0 && "text-bad")}>{res == null ? "—" : formatBRL(res)}</div>
+          <div className="text-xs text-muted">estimativa gerencial</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WeekBars({ days }: { days: { day: string; net: number }[] }) {
+  const max = Math.max(1, ...days.map((d) => d.net));
+  const total = days.reduce((a, d) => a + d.net, 0);
+  const todayKey = dayKey(new Date());
+  return (
+    <section className="card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-[12px] font-semibold text-muted">Faturamento · últimos 7 dias</div>
+        <div className="text-sm font-bold tabular">{formatBRL(total)}</div>
+      </div>
+      <div className="mt-3 flex h-24 items-end gap-2" role="img" aria-label={`Faturamento por dia nos últimos 7 dias: ${days.map((d) => `${fmtWeekdayShort(d.day)} ${formatBRL(d.net)}`).join(", ")}`}>
+        {days.map((d, i) => (
+          <div key={d.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+            <div className={cn("w-full max-w-[28px] origin-bottom rounded-t-lg animate-[grow_.6s_cubic-bezier(.16,.8,.24,1)_both]", d.day === todayKey ? "bg-primary" : "bg-primary/40", d.net === 0 && "bg-surface-overlay")}
+              style={{ height: `${Math.max(4, (d.net / max) * 100)}%`, animationDelay: `${i * 40}ms` }} />
+            <span className={cn("text-[10px] font-semibold capitalize", d.day === todayKey ? "text-foreground" : "text-subtle")}>{fmtWeekdayShort(d.day).replace(".", "")}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NextAction({ data, follow, pendingCost }: { data: AppData; follow: ReturnType<typeof pendingFollowUps>; pendingCost: boolean }) {
+  const ui = useUI();
+  const todayKey = dayKey(new Date());
+  const ns = ui.nextStop;
+  const est = ns ? data.establishments.find((e) => e.id === ns.stop.establishmentId) : undefined;
+  const due = follow.find((f) => f.followUpAt && f.followUpAt.slice(0, 10) <= todayKey);
+  const dueEst = due ? data.establishments.find((e) => e.id === due.establishmentId) : undefined;
+
+  let body: React.ReactNode;
+  if (!data.establishments.length) {
+    body = <Action icon={FileUp} kicker="Comece por aqui" title="Importe os 88 estabelecimentos" text="Cria as 3 rotas com as paradas na ordem do roteiro." primary={{ label: "Importar", icon: FileUp, onClick: () => go("importar") }} />;
+  } else if (ns && est) {
+    body = (
+      <Action icon={MapPinned} kicker={`Próxima parada · #${ns.stop.order}`} title={est.name} text={est.address}
+        primary={{ label: "Navegar", icon: Navigation, href: mapsNavUrl(placeQuery(est)), onClick: () => ns.stop.status === "pendente" && updateStop(ns.stop.id, { status: "a_caminho", statusAt: new Date().toISOString() }) }}
+        secondary={[
+          { label: "Visita", icon: ClipboardCheck, onClick: () => ui.openStopStatus(ns.stop) },
+          { label: "Venda", icon: BadgeDollarSign, onClick: () => ui.openSale({ establishmentId: ns.stop.establishmentId, stopId: ns.stop.id, routeId: ns.routeId }) },
+        ]}
+        link={{ label: "Ver rota", onClick: () => go(`rotas/${ns.routeId}/${ns.stop.id}`) }} />
+    );
+  } else if (due && dueEst) {
+    body = (
+      <Action icon={CalendarClock} kicker={due.overdue ? "Retorno atrasado" : "Retorno para hoje"} title={due.name} text={dueEst.address}
+        primary={{ label: "Navegar", icon: Navigation, href: mapsNavUrl(placeQuery(dueEst)) }}
+        secondary={[{ label: "Venda", icon: BadgeDollarSign, onClick: () => ui.openSale({ establishmentId: due.establishmentId }) }, { label: "Reagendar", icon: CalendarClock, onClick: () => ui.openFollowUp(due.establishmentId) }]} />
+    );
+  } else if (pendingCost) {
+    body = <Action icon={Wallet} kicker="Para ver o lucro" title="Informe o custo da placa" text="Margem, resultado e ponto de equilíbrio dependem dele." primary={{ label: "Informar custo", icon: Wallet, onClick: () => go("financas/custos") }} />;
+  } else {
+    body = <Action icon={MapPinned} kicker="Sem paradas pendentes" title="Planeje a próxima rota" text="Crie uma rota ou registre uma visita avulsa." primary={{ label: "Abrir rotas", icon: MapPinned, onClick: () => go("rotas") }} />;
+  }
+  return <section className="card border-primary/40 p-4 animate-slide-up" aria-label="Próxima ação recomendada">{body}</section>;
+}
+
+type Act = { label: string; icon: typeof Target; onClick?: () => void; href?: string };
+function Action({ icon: Icon, kicker, title, text, primary, secondary = [], link }: { icon: typeof Target; kicker: string; title: string; text?: string; primary: Act; secondary?: Act[]; link?: { label: string; onClick: () => void } }) {
+  const P = primary.icon;
+  return (
+    <>
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary-soft text-primary"><Icon className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-primary">{kicker}</div>
+          <div className="mt-0.5 text-[17px] font-extrabold leading-snug">{title}</div>
+          {text && <div className="line-clamp-2 text-sm text-muted">{text}</div>}
+        </div>
+        {link && <button type="button" onClick={link.onClick} className="press tap -mr-1 shrink-0 rounded-lg px-1.5 py-1 text-xs font-semibold text-primary">{link.label}</button>}
+      </div>
+      <div className={cn("mt-3 grid gap-2", secondary.length ? "grid-cols-2" : "grid-cols-1")}>
+        {primary.href ? (
+          <a href={primary.href} target="_blank" rel="noopener" onClick={primary.onClick} className="press col-span-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-[0_8px_24px_-10px_hsl(var(--primary)/0.8)]">
+            <P className="h-4 w-4" />{primary.label}
+          </a>
+        ) : (
+          <Button variant="primary" className="col-span-full h-12" onClick={primary.onClick}><P className="h-4 w-4" />{primary.label}</Button>
+        )}
+        {secondary.map((s) => (
+          <Button key={s.label} className="h-12" onClick={s.onClick}><s.icon className="h-4 w-4" />{s.label}</Button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function PendingData({ items }: { items: ReturnType<typeof pendingItems> }) {
+  const [open, setOpen] = useState(false);
+  const bad = items.some((x) => x.tone === "bad");
+  return (
+    <section className="card overflow-hidden">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="press flex w-full items-center gap-3 p-4 text-left">
+        <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl", bad ? "bg-bad-soft text-bad" : "bg-warn-soft text-warn")}><AlertCircle className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold">{items.length} {items.length === 1 ? "dado pendente" : "dados pendentes"}</span>
+          <span className="block truncate text-xs text-muted">{items[0].text}</span>
+        </span>
+        <ChevronDown className={cn("h-5 w-5 text-subtle transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <ul className="space-y-2 border-t border-border p-3 animate-fade-in">
+          {items.map((x) => (
+            <li key={x.text}>
+              <button type="button" onClick={() => go(x.to)} className="press flex min-h-[48px] w-full items-center gap-3 rounded-xl bg-surface-raised px-3 py-2.5 text-left text-sm">
+                <AlertCircle className={cn("h-4 w-4 shrink-0", x.tone === "bad" ? "text-bad" : "text-warn")} />
+                <span className="flex-1">{x.text}</span>
+                <ChevronRight className="h-4 w-4 text-subtle" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }

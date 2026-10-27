@@ -38,13 +38,27 @@ Esses valores já estão em `vercel.json`, então a Vercel os preenche sozinha. 
 Para conferir a URL publicada (num navegador de teste vazio, sem tocar nos seus dados):
 
 ```bash
-BASE_URL=https://<url-de-producao>/ node scripts/smoke.mjs   # arquivos, 12 telas, atualização direta, caminhos, barra inferior, offline
+BASE_URL=https://<url-de-producao>/ node scripts/smoke.mjs   # arquivos, 13 telas, atualização direta, caminhos, barra inferior, offline
 BASE_URL=https://<url-de-producao>/ node scripts/e2e.mjs     # fluxo completo: importar os 88, visita, venda, despesa, recarregar
 ```
 
 ### No iPhone
 
 Abra a URL no Safari › **Compartilhar › Adicionar à Tela de Início** › Adicionar. O app abre em tela cheia, funciona sem internet depois do primeiro acesso e o iOS deixa de apagar os dados por falta de uso.
+
+## Experiência no celular
+
+Feito para usar na rua, com uma mão, no iPhone (testado em 320, 375, 390 e 430 px e no desktop):
+
+- **Início** mostra só o dia: faturamento e recebido, anel da meta diária, vendas, visitas, conversão, ticket médio e a **próxima ação recomendada** (próxima parada com Navegar, Visita e Venda; retorno vencido; custo pendente). Margem e resultado só aparecem com vendas e custo informados. Sem registros, mostra “Registre sua primeira visita”, sem números inventados.
+- **Relatórios** (Mais › Relatórios ou o atalho no Início) reúne períodos, comparação, rentabilidade, projeção e os 8 gráficos. Os gráficos só são baixados quando essa tela abre.
+- **Barra inferior fixa** com 5 áreas e **botão +** de ações rápidas ao alcance do polegar: venda, visita, despesa, retorno, próxima parada, navegação, ausente, perda, estoque, metas, relatórios e configurações.
+- **Gavetas inferiores** para formulários: arraste para baixo para fechar. Se algo já foi preenchido, o app pergunta antes de descartar e o navegador avisa antes de sair da página.
+- **Toques de pelo menos 44 px**, teclado certo em cada campo (valor, telefone, busca, data), área segura do iPhone respeitada e nada escondido atrás da barra.
+- **Animações curtas**: transição entre telas, toque nos botões, confirmação ao salvar visita ou venda, troca de status, números e gráficos que entram animados. Com “Reduzir movimento” ativo no iPhone, tudo aparece sem animação.
+- Tema escuro (padrão) e claro (“sol forte”) em Configurações. Semáforo sempre com ícone e texto, não só cor.
+
+`node scripts/ux-check.mjs` verifica, nas 4 larguras de celular e no desktop, rolagem horizontal, áreas de toque, conteúdo atrás da barra, a gaveta de venda e a confirmação antes de descartar.
 
 ## Onde ficam os dados (importante)
 
@@ -92,7 +106,8 @@ src/
   lib/finance/intel.ts      funil, rankings com amostra mínima e recomendações
   lib/import/parse.ts       importador CSV/XLSX (detecção de colunas, validação, deduplicação)
   db/                       Dexie (IndexedDB), ações transacionais com auditoria, demonstração e backup
-  pages/                    Visão geral, Rota, Vendas, Financeiro, Inteligência, Metas, Importar e Mais
+  pages/                    Início (hoje), Relatórios, Rota, Vendas, Financeiro, Inteligência, Metas, Importar e Mais
+  components/feedback/      confirmação animada ao salvar visita e venda
 ```
 
 As telas nunca calculam indicadores por conta própria: tudo passa por `engine.ts`.

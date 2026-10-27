@@ -1,4 +1,4 @@
-import { Component, useEffect, type ReactNode } from "react";
+import { Component, Suspense, lazy, useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { useAppData } from "@/hooks/useData";
@@ -6,8 +6,11 @@ import { useHashRoute } from "@/hooks/useHashRoute";
 import { ensureSetup, updateSettings } from "@/db/actions";
 import { AppShell, MAIN_NAV, MORE_NAV } from "@/components/layout/AppShell";
 import { UIProvider } from "@/components/UIProvider";
-import { Button, Spinner } from "@/components/ui";
+import { AppSkeleton, Button, Spinner } from "@/components/ui";
+import { CelebrationLayer } from "@/components/feedback/Celebration";
 import { Overview } from "@/pages/Overview";
+// Relatórios carrega os gráficos (recharts): só baixa quando a tela é aberta.
+const ReportsPage = lazy(() => import("@/pages/Reports").then((m) => ({ default: m.ReportsPage })));
 import { RoutesList, RouteDetail } from "@/pages/Routes";
 import { SalesPage } from "@/pages/Sales";
 import { FinancePage, Simulator } from "@/pages/Finance";
@@ -15,7 +18,6 @@ import { IntelPage } from "@/pages/Intel";
 import { GoalsPage } from "@/pages/Goals";
 import { ImportPage } from "@/pages/Import";
 import { EstablishmentsPage, SettingsPage, HistoryPage, DefinitionsPage } from "@/pages/More";
-import { fmtLong } from "@/lib/dates";
 
 const setupPromise = ensureSetup();
 
@@ -23,7 +25,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Root />
-      <Toaster position="top-center" richColors closeButton toastOptions={{ style: { borderRadius: 16 } }} />
+      <CelebrationLayer />
     </ErrorBoundary>
   );
 }
@@ -45,7 +47,7 @@ function Root() {
     if (settings) document.documentElement.dataset.appearance = settings.appearance;
   }, [settings?.appearance]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading || !settings || !data || !ds) return <Spinner />;
+  if (loading || !settings || !data || !ds) return <AppSkeleton />;
   const [section = "inicio", p1, p2] = parts;
   const main = MAIN_NAV.find((n) => n.key === section);
   const more = MORE_NAV.find((n) => n.key === section);
@@ -55,8 +57,13 @@ function Root() {
   switch (section) {
     case "inicio":
       title = "Visão geral";
-      subtitle = `${data.establishments.length} estabelecimentos · ${data.routes.length} rotas · ${fmtLong(new Date())}`;
+      subtitle = `${data.establishments.length} estabelecimentos · ${data.routes.length} rotas`;
       page = <Overview data={data} ds={ds} settings={settings} />;
+      break;
+    case "relatorios":
+      title = "Relatórios";
+      subtitle = "Período, comparação, rentabilidade e gráficos";
+      page = <Suspense fallback={<Spinner />}><ReportsPage data={data} ds={ds} settings={settings} /></Suspense>;
       break;
     case "rotas":
       if (p1) {
@@ -115,8 +122,10 @@ function Root() {
   return (
     <UIProvider data={data} settings={settings} isDemo={isDemo}>
       <AppShell section={section} title={title} subtitle={subtitle} data={data} settings={settings} isDemo={isDemo}>
-        <div key={`${section}/${p1 ?? ""}`} className="animate-fade-in">{page}</div>
+        <div key={`${section}/${p1 ?? ""}`} className="animate-page-in">{page}</div>
       </AppShell>
+      <Toaster position="top-center" theme={settings.appearance} richColors closeButton offset="calc(env(safe-area-inset-top, 0px) + 12px)"
+        toastOptions={{ style: { borderRadius: 18 }, duration: 2600 }} />
     </UIProvider>
   );
 }

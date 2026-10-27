@@ -22,6 +22,8 @@ const tooltipStyle = {
 const dayLabel = (d: string) => `${fmtWeekdayShort(d)} ${fmtShort(d)}`;
 const brlAxis = (v: number) => (Math.abs(v) >= 100000 ? `${Math.round(v / 100000)}k` : `${Math.round(v / 100)}`);
 const H = 210;
+// Gráficos entram animados, exceto com "reduzir movimento" ativado no aparelho.
+const ANIM = typeof window === "undefined" || !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 export function RevenueChart({ data }: { data: DayPoint[] }) {
   return (
@@ -32,8 +34,8 @@ export function RevenueChart({ data }: { data: DayPoint[] }) {
         <YAxis tickFormatter={brlAxis} tickLine={false} axisLine={false} width={44} />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number, n) => [formatBRL(v), n === "net" ? "Faturamento" : "Recebido"]} />
         <Legend formatter={(v) => (v === "net" ? "Faturamento" : "Recebido")} wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="net" fill={C.primary} radius={[6, 6, 0, 0]} maxBarSize={28} />
-        <Bar dataKey="received" fill={C.c2} radius={[6, 6, 0, 0]} maxBarSize={28} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="net" fill={C.primary} radius={[6, 6, 0, 0]} maxBarSize={28} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="received" fill={C.c2} radius={[6, 6, 0, 0]} maxBarSize={28} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -49,7 +51,7 @@ export function ContributionChart({ data }: { data: DayPoint[] }) {
         <YAxis tickFormatter={brlAxis} tickLine={false} axisLine={false} width={44} />
         <ReferenceLine y={0} stroke="hsl(var(--foreground-subtle))" />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number, _n, p) => [formatBRL(v), (p?.payload as { pending: boolean }).pending ? "Contribuição (sem custo das placas — pendente)" : "Contribuição"]} />
-        <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={28}>
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={28}>
           {rows.map((r) => (
             <Cell key={r.day} fill={r.pending ? C.neutral : r.value < 0 ? C.bad : C.ok} />
           ))}
@@ -68,8 +70,8 @@ export function OrdersUnitsChart({ data }: { data: DayPoint[] }) {
         <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={30} />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number, n) => [v, n === "orders" ? "Pedidos" : "Placas"]} />
         <Legend formatter={(v) => (v === "orders" ? "Pedidos" : "Placas")} wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="orders" fill={C.primary} radius={[6, 6, 0, 0]} maxBarSize={24} />
-        <Bar dataKey="units" fill={C.c3} radius={[6, 6, 0, 0]} maxBarSize={24} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="orders" fill={C.primary} radius={[6, 6, 0, 0]} maxBarSize={24} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="units" fill={C.c3} radius={[6, 6, 0, 0]} maxBarSize={24} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -85,8 +87,8 @@ export function ConversionChart({ data, target }: { data: DayPoint[]; target?: n
         <YAxis yAxisId="c" orientation="right" tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} width={40} domain={[0, (max: number) => Math.max(20, Math.ceil(max / 10) * 10)]} />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number, n) => (n === "conversion" ? [formatPct(v), "Conversão"] : [v, "Visitas realizadas"])} />
         <Legend formatter={(v) => (v === "conversion" ? "Conversão" : "Visitas")} wrapperStyle={{ fontSize: 12 }} />
-        <Bar yAxisId="v" dataKey="visits" fill="hsl(var(--surface-overlay))" stroke="hsl(var(--border))" radius={[6, 6, 0, 0]} maxBarSize={26} />
-        <Line yAxisId="c" dataKey="conversion" stroke={C.primary} strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} yAxisId="v" dataKey="visits" fill="hsl(var(--surface-overlay))" stroke="hsl(var(--border))" radius={[6, 6, 0, 0]} maxBarSize={26} />
+        <Line isAnimationActive={ANIM} animationDuration={600} yAxisId="c" dataKey="conversion" stroke={C.primary} strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
         {target != null && <ReferenceLine yAxisId="c" y={target} stroke={C.ok} strokeDasharray="5 4" label={{ value: `meta ${target}%`, fill: "hsl(var(--success))", fontSize: 11, position: "insideTopRight" }} />}
       </ComposedChart>
     </ResponsiveContainer>
@@ -102,10 +104,10 @@ export function RevenueVsCostsChart({ data }: { data: DayPoint[] }) {
         <YAxis tickFormatter={brlAxis} tickLine={false} axisLine={false} width={44} />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number, n) => [formatBRL(v), ({ cogs: "CPV (custo das placas)", variable: "Custos variáveis", opExpenses: "Despesas operacionais", net: "Faturamento" } as Record<string, string>)[n as string] ?? n]} />
         <Legend formatter={(v) => ({ cogs: "CPV", variable: "Variáveis", opExpenses: "Despesas", net: "Faturamento" } as Record<string, string>)[v] ?? v} wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="cogs" stackId="c" fill={C.c3} maxBarSize={28} />
-        <Bar dataKey="variable" stackId="c" fill={C.warn} maxBarSize={28} />
-        <Bar dataKey="opExpenses" stackId="c" fill={C.bad} radius={[6, 6, 0, 0]} maxBarSize={28} />
-        <Line dataKey="net" stroke={C.ok} strokeWidth={2.5} dot={{ r: 3 }} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="cogs" stackId="c" fill={C.c3} maxBarSize={28} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="variable" stackId="c" fill={C.warn} maxBarSize={28} />
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="opExpenses" stackId="c" fill={C.bad} radius={[6, 6, 0, 0]} maxBarSize={28} />
+        <Line isAnimationActive={ANIM} animationDuration={600} dataKey="net" stroke={C.ok} strokeWidth={2.5} dot={{ r: 3 }} />
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -120,7 +122,7 @@ export function GoalChart({ data, target, label }: { data: { day: string; value:
         <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={30} />
         <Tooltip {...tooltipStyle} labelFormatter={dayLabel} formatter={(v: number) => [v, label]} />
         {target != null && <ReferenceLine y={target} stroke={C.ok} strokeDasharray="5 4" label={{ value: `meta ${target}`, fill: "hsl(var(--success))", fontSize: 11, position: "insideTopRight" }} />}
-        <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={28}>
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={28}>
           {data.map((d) => (
             <Cell key={d.day} fill={target == null || d.value == null ? C.primary : d.value >= target ? C.ok : d.value >= target * 0.66 ? C.warn : C.bad} />
           ))}
@@ -138,7 +140,7 @@ export function HBarChart({ rows, valueLabel, f }: { rows: { label: string; valu
         <XAxis type="number" hide />
         <YAxis type="category" dataKey="label" width={118} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
         <Tooltip {...tooltipStyle} formatter={(v: number, _n, p) => [`${f(v)} (n=${(p?.payload as { n: number }).n})`, valueLabel]} />
-        <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={22}>
+        <Bar isAnimationActive={ANIM} animationDuration={600} dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={22}>
           {rows.map((r) => (
             <Cell key={r.label} fill={r.dim ? C.neutral : C.primary} />
           ))}

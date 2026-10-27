@@ -25,7 +25,7 @@ export function StatusPill({ status, onClick, className }: { status: StopStatus;
       type={onClick ? "button" : undefined}
       onClick={onClick}
       aria-label={onClick ? `Status: ${STATUS_LABEL[status]}. Toque para alterar` : undefined}
-      className={cn("press inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold", m.bg, m.fg, className)}
+      className={cn("press tap inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-bold transition-colors", m.bg, m.fg, className)}
     >
       <m.Icon className="h-4 w-4" aria-hidden />
       {STATUS_LABEL[status]}

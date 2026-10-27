@@ -12,7 +12,7 @@ import { formatBRL, formatPct, formatNumber } from "@/lib/money";
 import { INDICATORS, findRule } from "@/lib/finance/goals";
 import { transportBudget } from "@/lib/finance/transport";
 import { cn } from "@/lib/utils";
-import { PeriodPicker } from "./Overview";
+import { PeriodPicker } from "@/components/PeriodPicker";
 import { MetricValue } from "@/components/Kpi";
 import { Badge, Card, Chips, EmptyState, SectionTitle, Stat } from "@/components/ui";
 import { go } from "@/hooks/useHashRoute";
@@ -111,7 +111,7 @@ export function IntelPage({ data, ds, settings }: { data: AppData; ds: Dataset; 
             </div>
           ))}
         </Card>
-        <Card title="Retornos pendentes" subtitle={`${follow.length} estabelecimento(s)`} action={<button className="text-xs font-semibold text-primary" onClick={() => go("rotas")}>Ver</button>}>
+        <Card title="Retornos pendentes" subtitle={`${follow.length} estabelecimento(s)`} action={<button type="button" className="press -my-2 inline-flex h-10 min-w-[44px] items-center justify-center rounded-lg px-2 text-xs font-semibold text-primary" onClick={() => go("rotas")}>Ver</button>}>
           {follow.length === 0 ? <p className="text-sm text-subtle">Nenhum retorno pendente.</p> : follow.slice(0, 6).map((f) => (
             <div key={f.establishmentId} className="flex items-center justify-between border-b border-border py-1.5 text-sm last:border-0">
               <span className="truncate">{f.name}</span>

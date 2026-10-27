@@ -13,6 +13,7 @@ import type { AppData } from "@/hooks/useData";
 import type { Settings } from "@/db/types";
 import { Badge, Button, Chips, Confirm, Field, Input, MoneyInput, NumberInput, Select, Sheet, Stepper, Textarea, Toggle } from "../ui";
 import { EstablishmentPicker } from "./EstablishmentPicker";
+import { celebrate } from "../feedback/Celebration";
 
 export interface SaleContext {
   establishmentId?: string | null;
@@ -103,6 +104,7 @@ export function SaleSheet({ open, onClose, ctx, data, settings, isDemo }: { open
     try {
       await createSale(input, { allowDuplicate });
       toast.success("Venda registrada", { description: `${formatBRL(preview.net)} · salva neste aparelho` });
+      celebrate("venda", `Venda de ${formatBRL(preview.net)}`);
       setDup(null);
       onClose();
     } catch (e) {
@@ -117,7 +119,7 @@ export function SaleSheet({ open, onClose, ctx, data, settings, isDemo }: { open
   const methods = settings.paymentMethods.filter((m) => m.active);
   return (
     <>
-      <Sheet open={open} onClose={onClose} title="Registrar venda" subtitle={ctx.stopId ? "Vinculada à visita desta parada" : "Venda presencial"}
+      <Sheet guard open={open} onClose={onClose} title="Registrar venda" subtitle={ctx.stopId ? "Vinculada à visita desta parada" : "Venda presencial"}
         footer={
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">

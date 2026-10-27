@@ -59,8 +59,10 @@
   html { -webkit-text-size-adjust: 100%; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* Fonte do sistema (SF Pro no iPhone): zero download e renderização nítida. */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, "Segoe UI", Roboto, sans-serif;
     font-feature-settings: "tnum" 1, "cv11" 1;
+    overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
   }
   button, a, [role="button"] { touch-action: manipulation; }
@@ -73,8 +75,18 @@
   .gradient-hero { background: var(--gradient-hero); }
   .gradient-brand { background-image: var(--gradient-brand); }
   .glass { background: hsl(var(--surface) / 0.78); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%); }
-  .press { transition: transform .16s cubic-bezier(.34,1.56,.64,1); }
-  .press:active { transform: scale(.97); }
+  .press { transition: transform .16s cubic-bezier(.34,1.56,.64,1), background-color .15s, opacity .15s; }
+  .press:active { transform: scale(.96); }
+  /* Amplia a área de toque para >= 44 px sem mudar o desenho do controle. */
+  .tap { position: relative; }
+  .tap::after { content: ""; position: absolute; inset: -6px -2px; }
+  .skeleton { position: relative; overflow: hidden; background: hsl(var(--surface-raised)); border-radius: 1rem; }
+  .skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent); animation: shimmer 1.3s infinite; }
+  @keyframes shimmer { to { transform: translateX(100%); } }
+  @keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .fab-pos { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
+  .main-pad { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 168px); }
+  .sheet-pad { padding-bottom: max(env(safe-area-inset-bottom), 1rem); }
   .tabular { font-variant-numeric: tabular-nums; }
   .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.75rem); }
   .pt-safe { padding-top: max(env(safe-area-inset-top), 0.5rem); }
@@ -93,7 +105,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .skeleton::after { display: none; }
+}
+
+@media (min-width: 1024px) {
+  .fab-pos { bottom: 2rem; }
+  .main-pad { padding-bottom: 4rem; }
 }
 
 .recharts-cartesian-axis-tick text { fill: hsl(var(--foreground-muted)); font-size: 11px; }

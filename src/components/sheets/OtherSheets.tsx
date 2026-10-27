@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Receipt, Check } from "lucide-react";
 import { toast } from "sonner";
 import { addExpense, setStopStatus, recordVisit, scheduleFollowUp, PossibleDuplicateError, ValidationError } from "@/db/actions";
-import { EXPENSE_CATEGORIES, LOSS_REASONS, STATUS_LABEL, type ExpenseCategory, type StopStatus, type VisitOutcome } from "@/db/types";
+import { EXPENSE_CATEGORIES, LOSS_REASONS, REALIZED_OUTCOMES, STATUS_LABEL, type ExpenseCategory, type StopStatus, type VisitOutcome } from "@/db/types";
 import { dayKey, addDays, fmtDate } from "@/lib/dates";
 import { formatBRL, type Cents } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import type { AppData } from "@/hooks/useData";
 import { Button, Chips, Confirm, Field, Input, MoneyInput, Select, Sheet, Textarea, Toggle } from "../ui";
 import { EstablishmentPicker } from "./EstablishmentPicker";
 import { STATUS_META } from "../status";
+import { celebrate } from "../feedback/Celebration";
 
 // ---------------------------------------------------------------- Despesa
 export function ExpenseSheet({ open, onClose, data, isDemo, defaults }: { open: boolean; onClose: () => void; data: AppData; isDemo: boolean; defaults?: { category?: ExpenseCategory; routeId?: string | null; status?: "pago" | "previsto" } }) {
@@ -50,7 +51,7 @@ export function ExpenseSheet({ open, onClose, data, isDemo, defaults }: { open: 
   const routes = [...data.routes].sort((a, b) => b.date.localeCompare(a.date));
   return (
     <>
-      <Sheet open={open} onClose={onClose} title="Registrar despesa" subtitle="Compras de estoque ficam em Finanças › Estoque (não são despesa)."
+      <Sheet guard open={open} onClose={onClose} title="Registrar despesa" subtitle="Compras de estoque ficam em Finanças › Estoque (não são despesa)."
         footer={<Button variant="primary" size="lg" className="w-full" onClick={() => submit()} loading={saving}><Receipt className="h-5 w-5" />Salvar {status === "previsto" ? "previsão" : "despesa"}</Button>}>
         <div className="space-y-4">
           <Field label="Valor"><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
@@ -116,7 +117,7 @@ export function StatusSheet({ open, onClose, title, current, onPick, mode = "sto
     else commit(s);
   };
   return (
-    <Sheet open={open} onClose={onClose} title={title} subtitle={step ? STATUS_LABEL[step] : "Um toque registra a visita. Corrija em até 30 min sem duplicar."}>
+    <Sheet guard open={open} onClose={onClose} title={title} subtitle={step ? STATUS_LABEL[step] : "Um toque registra a visita. Corrija em até 30 min sem duplicar."}>
       {!step && (
         <>
           <div className="mb-3 grid grid-cols-2 gap-2">
@@ -127,7 +128,7 @@ export function StatusSheet({ open, onClose, title, current, onPick, mode = "sto
             {statuses.map((s) => (
               <button key={s.key} type="button" onClick={() => pick(s.key)}
                 className={cn("press flex min-h-[60px] items-center gap-2.5 rounded-2xl border px-3 py-2 text-left text-sm font-semibold transition-colors", current === s.key ? "border-primary bg-primary-soft" : "border-border bg-surface-raised hover:bg-surface-overlay")}>
-                <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-xl", s.bg)}><s.Icon className={cn("h-4.5 w-4.5", s.fg)} style={{ width: 18, height: 18 }} /></span>
+                <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-xl", s.bg)}><s.Icon className={cn("h-[18px] w-[18px]", s.fg)} /></span>
                 <span className="leading-tight">{STATUS_LABEL[s.key]}</span>
               </button>
             ))}
@@ -172,6 +173,7 @@ export async function applyStopStatus(stopId: string, status: StopStatus, extra:
   try {
     await setStopStatus(stopId, status, extra);
     toast.success(STATUS_LABEL[status], { description: "Visita salva neste aparelho" });
+    if ((REALIZED_OUTCOMES as string[]).includes(status)) celebrate("visita", STATUS_LABEL[status]);
   } catch (e) {
     toast.error(e instanceof Error ? e.message : "Não foi possível salvar.");
   }
@@ -195,6 +197,7 @@ export function VisitSheet({ open, onClose, data, isDemo, onSale }: { open: bool
           if (s === "venda") { onSale(estId); return; }
           await recordVisit(estId, s as VisitOutcome, extra, isDemo);
           toast.success(STATUS_LABEL[s], { description: "Visita salva neste aparelho" });
+          celebrate("visita", STATUS_LABEL[s]);
         }} />
     </>
   );
@@ -215,7 +218,7 @@ export function FollowUpSheet({ open, onClose, data, isDemo, establishmentId }: 
     onClose();
   };
   return (
-    <Sheet open={open} onClose={onClose} title="Agendar retorno"
+    <Sheet guard open={open} onClose={onClose} title="Agendar retorno"
       footer={<Button variant="primary" size="lg" className="w-full" disabled={!estId} onClick={save}><CalendarClock className="h-5 w-5" />Agendar</Button>}>
       <div className="space-y-4">
         <Field label="Estabelecimento"><EstablishmentPicker establishments={data.establishments} value={estId} onChange={setEstId} isDemo={isDemo} /></Field>

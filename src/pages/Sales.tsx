@@ -13,7 +13,7 @@ import { dayKey, fmtDate, fmtDateTime, fmtLong, fmtTime, toLocalInput, fromLocal
 import { cn, groupBy, norm } from "@/lib/utils";
 import { useUI } from "@/components/UIProvider";
 import { usePeriod } from "@/hooks/usePeriod";
-import { PeriodPicker } from "./Overview";
+import { PeriodPicker } from "@/components/PeriodPicker";
 import { Badge, Button, Card, Chips, Confirm, EmptyState, Field, Input, MoneyInput, NumberInput, Select, Sheet, Stat, Stepper, Textarea, Toggle } from "@/components/ui";
 
 const payTone = { pendente: "warn", parcial: "warn", pago: "ok", estornado: "bad" } as const;
@@ -57,7 +57,7 @@ export function SalesPage({ data, settings }: { data: AppData; settings: Setting
       </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente" className="pl-10" aria-label="Buscar venda" />
+        <Input type="search" enterKeyHint="search" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente" className="pl-10" aria-label="Buscar venda" />
       </div>
       {rows.length === 0 ? (
         <Card><EmptyState icon={BadgeDollarSign} title="Nenhuma venda neste filtro" action={<Button variant="primary" onClick={() => ui.openSale()}>Registrar venda</Button>}>Use o botão acima ou marque “Venda fechada” numa parada da rota. Preço sugerido: {formatBRL(settings.defaultPrice)}.</EmptyState></Card>
@@ -130,7 +130,7 @@ function SaleDetail({ sale, data, settings, onClose }: { sale: Sale; data: AppDa
           <div className="grid grid-cols-2 gap-2">
             <Button disabled={c.paymentStatus === "pago" || c.paymentStatus === "estornado"} onClick={() => setMode("pagar")}><Wallet className="h-4 w-4" />Receber</Button>
             <Button onClick={() => setMode("editar")}><Pencil className="h-4 w-4" />Editar</Button>
-            <Button disabled={!!sale.refund} onClick={() => setMode("estornar")}><Undo2 className="h-4 w-4" />Estornar</Button>
+            <Button disabled={!!sale.refund} onClick={() => setMode("estornar")}><Undo2 className="h-4 w-4" />Registrar devolução</Button>
             <Button variant="ghost" className="text-bad" onClick={() => setMode("cancelar")}><Ban className="h-4 w-4" />Cancelar</Button>
             {!sale.delivered && <Button className="col-span-2" variant="soft" onClick={() => updateSale(sale.id, { delivered: true }, "Placa entregue").then(() => toast.success("Entrega registrada"))}>Marcar como entregue</Button>}
           </div>
@@ -192,7 +192,7 @@ function RefundSheet({ sale, max, units, paid, onClose }: { sale: Sale; max: num
     }
   };
   return (
-    <Sheet open onClose={onClose} title="Estornar venda" subtitle="Reduz a receita na data do estorno. A venda continua no histórico." footer={<Button variant="danger" size="lg" className="w-full" onClick={save}>Confirmar estorno</Button>}>
+    <Sheet open onClose={onClose} title="Registrar devolução (estorno)" subtitle="Reduz a receita na data da devolução. A venda continua no histórico." footer={<Button variant="danger" size="lg" className="w-full" onClick={save}>Confirmar estorno</Button>}>
       <div className="space-y-4">
         <Field label="Valor estornado" hint={`Máximo ${formatBRL(max)}`}><MoneyInput value={amount} onChange={setAmount} /></Field>
         <Field label="Placas devolvidas"><Stepper value={ret} min={0} max={units} onChange={setRet} /></Field>

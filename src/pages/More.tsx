@@ -37,7 +37,7 @@ export function EstablishmentsPage({ data, isDemo, openId }: { data: AppData; is
       </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Buscar entre ${data.establishments.length} estabelecimentos`} className="pl-10" aria-label="Buscar estabelecimento" />
+        <Input type="search" enterKeyHint="search" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Buscar entre ${data.establishments.length} estabelecimentos`} className="pl-10" aria-label="Buscar estabelecimento" />
       </div>
       {segs.length > 1 && <div className="no-scrollbar -mx-4 overflow-x-auto px-4"><Chips size="sm" className="flex-nowrap" options={[{ value: "todos", label: "Todos" }, ...segs.map((s) => ({ value: s, label: s }))]} value={seg} onChange={setSeg} /></div>}
       {list.length === 0 ? <Card><EmptyState icon={Store} title="Nenhum estabelecimento" action={<Button variant="primary" onClick={() => go("importar")}>Importar os 88 do roteiro</Button>} /></Card> : (
@@ -98,7 +98,7 @@ function EstablishmentSheet({ est, data, onClose }: { est: Establishment; data: 
           <Field label="Nome"><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Categoria"><Input value={f.category} onChange={(e) => set("category", e.target.value)} /></Field>
           <Field label="Segmento (análises)"><Select value={f.segment} onChange={(v) => set("segment", v)} options={SEGMENTS.map((s) => ({ value: s, label: s }))} /></Field>
-          <Field label="Telefone"><Input value={f.phone} onChange={(e) => set("phone", e.target.value)} inputMode="tel" /></Field>
+          <Field label="Telefone"><Input value={f.phone} onChange={(e) => set("phone", e.target.value)} type="tel" inputMode="tel" autoComplete="tel" /></Field>
           <Field label="Endereço" className="sm:col-span-2"><Input value={f.address} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="Bairro"><Input value={f.bairro} onChange={(e) => set("bairro", e.target.value)} /></Field>
           <Field label="Cidade"><Input value={f.city} onChange={(e) => set("city", e.target.value)} /></Field>
@@ -163,7 +163,7 @@ function NewEstablishmentSheet({ open, onClose, isDemo }: { open: boolean; onClo
           <Field label="Bairro"><Input value={bairro} onChange={(e) => setBairro(e.target.value)} /></Field>
           <Field label="Cidade"><Input value={city} onChange={(e) => setCity(e.target.value)} /></Field>
         </div>
-        <Field label="Telefone"><Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" /></Field>
+        <Field label="Telefone"><Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" /></Field>
       </div>
     </Sheet>
   );
@@ -212,7 +212,7 @@ export function SettingsPage({ settings }: { settings: Settings }) {
           <Field label="Dias de trabalho (para projeção do mês)">
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((w, i) => (
-                <button key={w} type="button" onClick={() => setDays(days.includes(i) ? days.filter((d) => d !== i) : [...days, i].sort())} className={cn("press h-9 rounded-full border px-3 text-xs font-semibold capitalize", days.includes(i) ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface-raised")}>{w.slice(0, 3)}</button>
+                <button key={w} type="button" onClick={() => setDays(days.includes(i) ? days.filter((d) => d !== i) : [...days, i].sort())} aria-pressed={days.includes(i)} className={cn("press h-11 min-w-[48px] rounded-full border px-3 text-sm font-semibold capitalize", days.includes(i) ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface-raised")}>{w.slice(0, 3)}</button>
               ))}
             </div>
           </Field>

@@ -28,7 +28,7 @@ const h1 = (text) => page.locator("h1", { hasText: text }).waitFor({ timeout: 15
 
 // 2. Cada tela abre direto pela URL e continua igual após atualizar a página
 const SCREENS = [
-  ["inicio", "Visão geral"], ["rotas", "Rota e prospecção"], ["vendas", "Vendas"], ["financas", "Financeiro"],
+  ["inicio", "Visão geral"], ["relatorios", "Relatórios"], ["rotas", "Rota e prospecção"], ["vendas", "Vendas"], ["financas", "Financeiro"],
   ["inteligencia", "Inteligência comercial"], ["metas", "Metas e semáforo"], ["simulador", "Simulador de preço"],
   ["importar", "Importar roteiros"], ["estabelecimentos", "Estabelecimentos"], ["configuracoes", "Configurações e backup"],
   ["historico", "Histórico de alterações"], ["definicoes", "Definições dos indicadores"],

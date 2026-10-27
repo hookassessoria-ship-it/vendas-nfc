@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   MapPinned, Plus, ChevronRight, CalendarDays, Navigation, MapPin, Phone, ArrowUp, ArrowDown, Trash2, Star, StickyNote, Play, Square,
-  Clock, Info, FileUp, CalendarClock, Store, Footprints, BadgeDollarSign, MoreVertical,
+  Clock, Info, FileUp, CalendarClock, Store, Footprints, BadgeDollarSign, MoreVertical, ClipboardCheck, ThumbsDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AppData } from "@/hooks/useData";
@@ -37,10 +37,10 @@ export function RoutesList({ data, isDemo }: { data: AppData; isDemo: boolean })
       <Chips options={[{ value: "rotas", label: `Rotas (${routes.length})` }, { value: "retornos", label: `Retornos pendentes (${follow.length})` }]} value={tab} onChange={setTab} />
       {tab === "rotas" && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => setCreating(true)}><Plus className="h-4 w-4" />Nova rota</Button>
-            <Button onClick={() => go("importar")}><FileUp className="h-4 w-4" />Importar roteiros</Button>
-            <Button onClick={() => ui.openVisit()}><Footprints className="h-4 w-4" />Visita avulsa</Button>
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="primary" className="h-[68px] flex-col gap-1 px-2 text-[13px]" onClick={() => setCreating(true)}><Plus className="h-5 w-5" />Nova rota</Button>
+            <Button className="h-[68px] flex-col gap-1 px-2 text-[13px]" onClick={() => go("importar")}><FileUp className="h-5 w-5" />Importar</Button>
+            <Button className="h-[68px] flex-col gap-1 px-2 text-[13px]" onClick={() => ui.openVisit()}><Footprints className="h-5 w-5" />Visita avulsa</Button>
           </div>
           {routes.length === 0 && (
             <Card>
@@ -72,7 +72,7 @@ function RouteCard({ route, data, today }: { route: Route; data: AppData; today:
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             {isToday && <Badge tone="primary">Hoje</Badge>}
-            <span className="text-xs font-semibold capitalize text-muted">{fmtWeekday(route.date)} · {fmtDate(route.date)}</span>
+            <span className="text-xs font-semibold text-muted first-letter:uppercase">{fmtWeekday(route.date)} · {fmtDate(route.date)}</span>
           </div>
           <div className="mt-1 truncate text-base font-bold">{route.name}</div>
           <div className="truncate text-xs text-subtle">{route.region || "Região não informada"}</div>
@@ -104,7 +104,7 @@ function NewRouteSheet({ open, onClose, isDemo }: { open: boolean; onClose: () =
     }
   };
   return (
-    <Sheet open={open} onClose={onClose} title="Nova rota" footer={<Button variant="primary" size="lg" className="w-full" onClick={save}>Criar rota</Button>}>
+    <Sheet guard open={open} onClose={onClose} title="Nova rota" footer={<Button variant="primary" size="lg" className="w-full" onClick={save}>Criar rota</Button>}>
       <div className="space-y-4">
         <Field label="Nome"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Sexta – Av. Rio Verde" /></Field>
         <Field label="Data"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
@@ -177,7 +177,7 @@ export function RouteDetail({ id, focusStop, data, settings, isDemo }: { id: str
       <section className="card gradient-hero p-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted"><CalendarDays className="h-3.5 w-3.5" />{fmtLong(route.date)}</div>
+            {!norm(route.name).includes(norm(fmtWeekday(route.date))) && <div className="flex items-center gap-1.5 text-xs font-semibold text-muted"><CalendarDays className="h-3.5 w-3.5" /><span className="first-letter:uppercase">{fmtLong(route.date)}</span></div>}
             <h2 className="mt-1 text-xl font-extrabold">{route.name}</h2>
             <div className="text-sm text-muted">{route.region || "Região não informada"}</div>
           </div>
@@ -211,25 +211,26 @@ export function RouteDetail({ id, focusStop, data, settings, isDemo }: { id: str
           <div className="mt-1 text-lg font-extrabold">{nextEst.name}</div>
           <div className="text-sm text-muted">{nextEst.address}</div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <a className="press inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground" href={mapsNavUrl(placeQuery(nextEst))} target="_blank" rel="noopener" onClick={() => next.status === "pendente" && updateStop(next.id, { status: "a_caminho", statusAt: new Date().toISOString() })}>
+            <a className="press inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground" href={mapsNavUrl(placeQuery(nextEst))} target="_blank" rel="noopener" onClick={() => next.status === "pendente" && updateStop(next.id, { status: "a_caminho", statusAt: new Date().toISOString() })}>
               <Navigation className="h-4 w-4" />Navegar
             </a>
-            <Button onClick={() => ui.openStopStatus(next)}>Registrar visita</Button>
-            <Button onClick={() => ui.openSale({ establishmentId: next.establishmentId, stopId: next.id, routeId: id })}>Venda</Button>
-            <Button onClick={() => ui.openStopStatus(next, "sem_interesse")}>Perda</Button>
+            <Button onClick={() => ui.openStopStatus(next)}><ClipboardCheck className="h-4 w-4" />Visita</Button>
+            <Button onClick={() => ui.openSale({ establishmentId: next.establishmentId, stopId: next.id, routeId: id })}><BadgeDollarSign className="h-4 w-4" />Venda</Button>
+            <Button onClick={() => ui.openStopStatus(next, "sem_interesse")}><ThumbsDown className="h-4 w-4" />Perda</Button>
           </div>
         </section>
       )}
 
-      <Card padded={false} className="p-4">
-        <div className="flex items-start gap-2 text-sm text-muted"><Info className="mt-0.5 h-4 w-4 shrink-0" /><p>Mapa indisponível: os endereços não têm coordenadas verificadas e não há API de rotas configurada. A ordem das paradas é manual (sem otimização automática). Distâncias e tempos são <strong>estimativas não verificadas</strong>; use “Navegar” para a rota real no Google Maps.</p></div>
-      </Card>
+      <details className="group rounded-2xl border border-border/70 px-4 text-sm text-muted">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 font-semibold"><Info className="h-4 w-4 shrink-0" />Sem mapa: ordem manual e distâncias estimadas<ChevronRight className="ml-auto h-4 w-4 transition-transform group-open:rotate-90" /></summary>
+        <p className="pb-3">Os endereços não têm coordenadas verificadas e não há API de rotas configurada. A ordem das paradas é manual (sem otimização automática). Distâncias e tempos são <strong>estimativas não verificadas</strong>; use “Navegar” para a rota real no Google Maps.</p>
+      </details>
 
       <div className="flex flex-wrap items-center gap-2">
         <Chips size="sm" options={[{ value: "todas", label: `Todas (${stops.length})` }, { value: "pendentes", label: `Pendentes (${counts.pendente + counts.a_caminho})` }, { value: "feitas", label: `Feitas (${done})` }]} value={filter} onChange={setFilter} />
         <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Adicionar parada</Button>
       </div>
-      {stops.length > 8 && <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar paradas por nome, endereço ou categoria" aria-label="Filtrar paradas" />}
+      {stops.length > 8 && <Input type="search" enterKeyHint="search" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar paradas por nome, endereço ou categoria" aria-label="Filtrar paradas" />}
 
       {stops.length === 0 && <Card><EmptyState icon={Store} title="Rota sem paradas" action={<Button variant="primary" onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Adicionar estabelecimento</Button>}>Adicione estabelecimentos já cadastrados ou cadastre novos.</EmptyState></Card>}
 
@@ -262,7 +263,7 @@ function StopCard({ stop, est, total, index, nextStop, nextEst, highlight }: { s
   return (
     <li id={`stop-${stop.id}`} className={cn("card overflow-hidden", highlight && "ring-2 ring-primary", finished && "opacity-90")}>
       <div className="flex gap-3 p-4">
-        <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-black tabular", m.bg, m.fg)}>{stop.order}</div>
+        <div key={stop.status} className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black tabular transition-colors animate-status-pop", m.bg, m.fg)}>{stop.order}</div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -277,12 +278,12 @@ function StopCard({ stop, est, total, index, nextStop, nextEst, highlight }: { s
           </div>
           <div className="mt-1.5 flex items-start gap-1.5 text-sm text-muted"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{est.address}</span></div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-subtle">
-            {est.phone ? (tel ? <a href={tel} className="inline-flex items-center gap-1 text-primary"><Phone className="h-3.5 w-3.5" />{est.phone}</a> : <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{est.phone}</span>) : <span>Telefone não confirmado</span>}
+            {est.phone ? (tel ? <a href={tel} className="tap inline-flex items-center gap-1 font-semibold text-primary"><Phone className="h-3.5 w-3.5" />{est.phone}</a> : <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{est.phone}</span>) : <span>Telefone não confirmado</span>}
             <span>{est.ratingVerified && est.googleRating != null ? `Google ${est.googleRating.toLocaleString("pt-BR")}★ (${est.googleReviews ?? "?"} aval., verif. ${est.ratingCheckedAt ? fmtDate(est.ratingCheckedAt) : "—"})` : "Nota Google não verificada"}</span>
             <span>{est.hours ? `Horário: ${est.hours}${est.hoursVerified && est.hoursCheckedAt ? ` (verif. ${fmtDate(est.hoursCheckedAt)})` : " (não verificado)"}` : "Horário não confirmado"}</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <StatusPill status={stop.status} onClick={() => ui.openStopStatus(stop)} />
+            <StatusPill key={stop.status} className="animate-status-pop" status={stop.status} onClick={() => ui.openStopStatus(stop)} />
             {stop.status === "pendente" && <Button size="sm" variant="ghost" onClick={() => ui.openStopStatus(stop)}>Registrar</Button>}
             {stop.followUpAt && <Badge tone="warn"><CalendarClock className="h-3 w-3" />Retorno {fmtDate(stop.followUpAt)}</Badge>}
             {stop.statusAt && finished && <span className="text-[11px] text-subtle">{fmtDateTime(stop.statusAt)}</span>}
@@ -290,13 +291,13 @@ function StopCard({ stop, est, total, index, nextStop, nextEst, highlight }: { s
         </div>
       </div>
       <div className="grid grid-cols-3 border-t border-border text-xs font-semibold">
-        <a href={mapsNavUrl(placeQuery(est))} target="_blank" rel="noopener" className="press flex items-center justify-center gap-1.5 py-2.5 text-primary">
+        <a href={mapsNavUrl(placeQuery(est))} target="_blank" rel="noopener" className="press flex min-h-[48px] items-center justify-center gap-1.5 text-primary">
           <Navigation className="h-4 w-4" />Navegar
         </a>
-        <a href={est.mapsUrl || mapsSearchUrl(placeQuery(est))} target="_blank" rel="noopener" className="press flex items-center justify-center gap-1.5 border-x border-border py-2.5">
+        <a href={est.mapsUrl || mapsSearchUrl(placeQuery(est))} target="_blank" rel="noopener" className="press flex min-h-[48px] items-center justify-center gap-1.5 border-x border-border">
           <MapPin className="h-4 w-4" />No Maps
         </a>
-        <button type="button" onClick={() => setOpen(!open)} className="press flex items-center justify-center gap-1.5 py-2.5" aria-expanded={open}>
+        <button type="button" onClick={() => setOpen(!open)} className="press flex min-h-[48px] items-center justify-center gap-1.5" aria-expanded={open}>
           <StickyNote className="h-4 w-4" />Detalhes
         </button>
       </div>
@@ -376,7 +377,7 @@ function EditRouteSheet({ open, onClose, route, onDelete }: { open: boolean; onC
     onClose();
   };
   return (
-    <Sheet open={open} onClose={onClose} title="Editar rota" footer={<div className="flex gap-2"><Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button><Button variant="primary" className="flex-1" onClick={save}>Salvar</Button></div>}>
+    <Sheet guard open={open} onClose={onClose} title="Editar rota" footer={<div className="flex gap-2"><Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button><Button variant="primary" className="flex-1" onClick={save}>Salvar</Button></div>}>
       <div className="space-y-4">
         <Field label="Nome"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Data"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>

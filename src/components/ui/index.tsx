@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from "react";
 import { X, Info, CheckCircle2, AlertTriangle, XOctagon, MinusCircle, Clock3, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseBRL, centsToInput, type Cents } from "@/lib/money";
@@ -13,7 +13,7 @@ export function Button({ variant = "secondary", size = "md", className, loading,
       disabled={p.disabled || loading}
       className={cn(
         "press inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none select-none",
-        size === "sm" && "h-9 px-3 text-sm",
+        size === "sm" && "tap h-10 px-3 text-sm",
         size === "md" && "h-11 px-4 text-sm",
         size === "lg" && "h-14 px-5 text-base",
         variant === "primary" && "bg-primary text-primary-foreground shadow-[0_8px_24px_-10px_hsl(var(--primary)/0.8)] hover:brightness-110",
@@ -32,7 +32,7 @@ export function Button({ variant = "secondary", size = "md", className, loading,
 
 export function IconButton({ label, className, children, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return (
-    <button {...p} aria-label={label} title={label} className={cn("press grid h-10 w-10 place-items-center rounded-xl text-foreground hover:bg-surface-raised disabled:opacity-40", className)}>
+    <button {...p} aria-label={label} title={label} className={cn("press grid h-11 w-11 place-items-center rounded-xl text-foreground hover:bg-surface-raised disabled:opacity-40", className)}>
       {children}
     </button>
   );
@@ -105,44 +105,105 @@ export function Progress({ value, light = "sem_meta", className, label }: { valu
 }
 
 // ---------------------------------------------------------------- Sheet (gaveta inferior / modal)
-export function Sheet({ open, onClose, title, subtitle, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+/**
+ * Gaveta inferior no celular (arraste para baixo para fechar) e modal no desktop.
+ * `guard`: se o usuário já digitou ou escolheu algo, fechar por toque fora, X, Esc ou arraste
+ * pede confirmação antes de descartar. Fechamentos feitos pelo próprio formulário (após salvar)
+ * chamam `onClose` diretamente e não passam por aqui.
+ */
+export function Sheet({ open, onClose, title, subtitle, children, footer, wide, guard }: { open: boolean; onClose: () => void; title: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean; guard?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [dirty, setDirty] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [drag, setDrag] = useState(0);
+  const dragStart = useRef<number | null>(null);
+  const requestClose = useCallback(() => {
+    if (guard && dirty) setAsking(true);
+    else onClose();
+  }, [guard, dirty, onClose]);
+  const closeRef = useRef(requestClose);
+  closeRef.current = requestClose;
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    setDirty(false);
+    setAsking(false);
+    setDrag(0);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    setTimeout(() => ref.current?.focus(), 30);
+    const t = setTimeout(() => { if (!ref.current?.contains(document.activeElement)) ref.current?.focus({ preventScroll: true }); }, 30);
     return () => {
+      clearTimeout(t);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open]);
+
+  // Evita perder o formulário ao recarregar ou fechar a aba por engano.
+  useEffect(() => {
+    if (!open || !guard || !dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [open, guard, dirty]);
+
   if (!open) return null;
+  const markInput = () => guard && !dirty && setDirty(true);
+  const markClick = (e: React.MouseEvent) => {
+    if (!guard || dirty) return;
+    if ((e.target as HTMLElement).closest('[role="radio"],[role="switch"],[aria-label="Aumentar"],[aria-label="Diminuir"],[data-dirty]')) setDirty(true);
+  };
+  const onDown = (e: React.PointerEvent) => { if (e.pointerType !== "mouse") dragStart.current = e.clientY; };
+  const onMove = (e: React.PointerEvent) => { if (dragStart.current != null) setDrag(Math.max(0, e.clientY - dragStart.current)); };
+  const onUp = () => {
+    if (dragStart.current == null) return;
+    dragStart.current = null;
+    if (drag > 110) requestClose();
+    setDrag(0);
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/55 animate-fade-in" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
+      <div className="absolute inset-0 bg-black/55 animate-fade-in" style={drag ? { opacity: Math.max(0.2, 1 - drag / 400) } : undefined} onClick={requestClose} />
       <div
         ref={ref}
         tabIndex={-1}
+        style={drag ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}
         className={cn(
-          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl outline-none animate-sheet-in sm:rounded-3xl sm:animate-pop",
+          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-border bg-surface shadow-2xl outline-none transition-transform duration-200 animate-sheet-in sm:rounded-3xl sm:animate-pop",
           wide ? "sm:max-w-3xl" : "sm:max-w-lg",
         )}
       >
-        <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-surface-overlay sm:hidden" />
-        <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
-          <div className="min-w-0">
-            <h3 className="text-lg font-extrabold tracking-tight">{title}</h3>
-            {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+        <div className="touch-none select-none" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+          <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-surface-overlay sm:hidden" aria-hidden />
+          <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-3">
+            <div className="min-w-0">
+              <h3 className="text-lg font-extrabold tracking-tight">{title}</h3>
+              {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+            </div>
+            <IconButton label="Fechar" onClick={requestClose} className="-mr-2 -mt-1 shrink-0">
+              <X className="h-5 w-5" />
+            </IconButton>
+          </header>
+        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4" onInput={markInput} onClickCapture={markClick} style={footer ? undefined : { paddingBottom: "max(env(safe-area-inset-bottom), 1rem)" }}>{children}</div>
+        {footer && <footer className="sheet-pad border-t border-border bg-surface px-5 pt-3">{footer}</footer>}
+        {asking && (
+          <div className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface-raised px-5 pt-4 shadow-2xl animate-slide-up sheet-pad" role="alertdialog" aria-label="Descartar alterações?">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-warn-soft text-warn"><AlertTriangle className="h-5 w-5" /></span>
+              <div className="min-w-0">
+                <div className="font-bold">Descartar o que você preencheu?</div>
+                <p className="text-sm text-muted">Nada foi salvo ainda.</p>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button className="flex-1" variant="primary" onClick={() => setAsking(false)}>Continuar editando</Button>
+              <Button className="flex-1" variant="ghost" onClick={() => { setAsking(false); onClose(); }}>Descartar</Button>
+            </div>
           </div>
-          <IconButton label="Fechar" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </IconButton>
-        </header>
-        <div className="flex-1 overflow-y-auto px-5 pb-4">{children}</div>
-        {footer && <footer className="border-t border-border bg-surface px-5 py-3 pb-safe">{footer}</footer>}
+        )}
       </div>
     </div>
   );
@@ -286,7 +347,7 @@ export function Chips<T extends string>({ options, value, onChange, className, s
           onClick={() => onChange(o.value)}
           className={cn(
             "press shrink-0 whitespace-nowrap rounded-full border font-semibold transition-colors",
-            size === "md" ? "h-10 px-4 text-sm" : "h-8 px-3 text-xs",
+            size === "md" ? "h-11 px-4 text-sm" : "tap h-9 px-3.5 text-[13px]",
             value === o.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface-raised text-foreground hover:bg-surface-overlay",
           )}
         >
@@ -311,9 +372,9 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cn("press relative h-7 w-12 shrink-0 rounded-full transition-colors", checked ? "bg-primary" : "bg-surface-overlay")}
+        className={cn("press tap relative h-8 w-[52px] shrink-0 rounded-full transition-colors", checked ? "bg-primary" : "bg-surface-overlay")}
       >
-        <span className={cn("absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
+        <span className={cn("absolute left-0 top-0.5 h-7 w-7 rounded-full bg-white shadow transition-transform duration-200", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
       </button>
     </div>
   );
@@ -337,7 +398,7 @@ export function InfoTip({ title, children }: { title: string; children: ReactNod
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" aria-label={`Como é calculado: ${title}`} onClick={(e) => { e.stopPropagation(); setOpen(true); }} className="press -m-1 grid h-7 w-7 place-items-center rounded-lg text-subtle hover:text-foreground">
+      <button type="button" aria-label={`Como é calculado: ${title}`} onClick={(e) => { e.stopPropagation(); setOpen(true); }} className="press -m-2.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-subtle hover:text-foreground">
         <Info className="h-4 w-4" />
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={title}>
@@ -351,6 +412,65 @@ export function Spinner() {
   return (
     <div className="grid min-h-[50vh] place-items-center">
       <Loader2 className="h-7 w-7 animate-spin text-primary" />
+    </div>
+  );
+}
+
+/** Estado de carregamento da abertura do app (só aparece enquanto o banco local abre). */
+export function AppSkeleton() {
+  return (
+    <div className="mx-auto max-w-lg space-y-3 px-4 pt-safe" aria-busy="true" aria-label="Carregando">
+      <div className="skeleton mt-4 h-7 w-40" />
+      <div className="skeleton h-44 rounded-3xl" />
+      <div className="grid grid-cols-2 gap-3"><div className="skeleton h-24" /><div className="skeleton h-24" /><div className="skeleton h-24" /><div className="skeleton h-24" /></div>
+      <div className="skeleton h-28 rounded-3xl" />
+    </div>
+  );
+}
+
+const reduceMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** Número que desliza até o valor (curto, 450 ms). Com movimento reduzido, mostra o valor direto. */
+export function useCountUp(target: number, ms = 450) {
+  const [v, setV] = useState(reduceMotion() ? target : 0);
+  const from = useRef(reduceMotion() ? target : 0);
+  useEffect(() => {
+    const start = from.current;
+    if (reduceMotion() || start === target) { setV(target); from.current = target; return; }
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setV(start + (target - start) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) raf = requestAnimationFrame(step);
+      else from.current = target;
+    };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); from.current = target; setV(target); };
+  }, [target, ms]);
+  return v;
+}
+
+export function AnimatedNumber({ value, format, className }: { value: number; format: (v: number) => string; className?: string }) {
+  const v = useCountUp(value);
+  return <span className={cn("tabular", className)} aria-label={format(value)}><span aria-hidden>{format(v === value ? value : Math.round(v))}</span></span>;
+}
+
+/** Anel de progresso (0–1). Cor pelo semáforo; o texto ao lado sempre explica o estado. */
+export function ProgressRing({ value, light = "sem_meta", size = 64, stroke = 7, children, label }: { value: number | null; light?: Light; size?: number; stroke?: number; children?: ReactNode; label: string }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = value == null ? 0 : Math.max(0, Math.min(1, value));
+  const [shown, setShown] = useState(reduceMotion() ? pct : 0);
+  useEffect(() => { const t = requestAnimationFrame(() => setShown(pct)); return () => cancelAnimationFrame(t); }, [pct]);
+  const color = { verde: "hsl(var(--success))", amarelo: "hsl(var(--warning))", vermelho: "hsl(var(--danger))" }[light as string] ?? "hsl(var(--primary))";
+  return (
+    <div className="relative grid shrink-0 place-items-center" style={{ width: size, height: size }} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct * 100)}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--surface-overlay))" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - shown)} style={{ transition: "stroke-dashoffset .8s cubic-bezier(.16,.8,.24,1)" }} />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center">{children}</div>
     </div>
   );
 }

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { go } from "@/hooks/useHashRoute";
 import { usePeriod } from "@/hooks/usePeriod";
 import { useUI } from "@/components/UIProvider";
-import { PeriodPicker } from "./Overview";
+import { PeriodPicker } from "@/components/PeriodPicker";
 import { MetricValue } from "@/components/Kpi";
 import { Badge, Button, Card, Chips, Confirm, EmptyState, Field, Input, LightBadge, MoneyInput, NumberInput, Progress, Sheet, Stat, Toggle } from "@/components/ui";
 
@@ -287,7 +287,7 @@ function Stock({ data, isDemo }: { data: AppData; isDemo: boolean }) {
                   <div className="font-bold tabular">{l.totalPaid == null ? "custo não informado" : formatBRL(l.totalPaid + l.freight)}</div>
                   <div className="text-subtle">{lotUnitCost(l) == null ? "—" : `${formatBRL(lotUnitCost(l))}/un.`}</div>
                 </div>
-                <button aria-label="Excluir lote" className="press grid h-9 w-9 place-items-center rounded-lg text-subtle hover:text-bad" onClick={() => updateLot(l.id, { deletedAt: new Date().toISOString() }).then(() => toast.success("Lote excluído"))}><Trash2 className="h-4 w-4" /></button>
+                <button aria-label="Excluir lote" className="press grid h-11 w-11 place-items-center rounded-lg text-subtle hover:text-bad" onClick={() => updateLot(l.id, { deletedAt: new Date().toISOString() }).then(() => toast.success("Lote excluído"))}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </div>

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import {
   LayoutDashboard, MapPinned, BadgeDollarSign, Wallet, Lightbulb, Plus, Gauge, Calculator, FileUp, Store, Settings as SettingsIcon,
   History, BookOpen, MoreHorizontal, HardDrive, Navigation, Receipt, CalendarClock, UserX, ThumbsDown, Footprints, FlaskConical, ClipboardCheck,
+  BarChart3, Boxes, Target, ChevronRight, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { go } from "@/hooks/useHashRoute";
@@ -22,6 +23,7 @@ export const MAIN_NAV = [
 ] as const;
 
 export const MORE_NAV = [
+  { key: "relatorios", label: "Relatórios", Icon: BarChart3 },
   { key: "metas", label: "Metas e semáforo", Icon: Gauge },
   { key: "simulador", label: "Simulador de preço", Icon: Calculator },
   { key: "importar", label: "Importar roteiros", Icon: FileUp },
@@ -35,7 +37,9 @@ export function AppShell({ section, title, subtitle, actions, children, data, se
   const [more, setMore] = useState(false);
   const [quick, setQuick] = useState(false);
   const backupDays = settings.lastBackupAt ? diffDays(settings.lastBackupAt, new Date()) : null;
-  const needsBackup = !!settings.lastChangeAt && (!settings.lastBackupAt || settings.lastChangeAt > settings.lastBackupAt) && (backupDays == null || backupDays >= 2);
+  const [snoozed, setSnoozed] = useState(() => { try { return Number(localStorage.getItem("vnfc:backup-snooze") ?? 0) > Date.now(); } catch { return false; } });
+  const needsBackup = !snoozed && !!settings.lastChangeAt && (!settings.lastBackupAt || settings.lastChangeAt > settings.lastBackupAt) && (backupDays == null || backupDays >= 2);
+  const snooze = () => { setSnoozed(true); try { localStorage.setItem("vnfc:backup-snooze", String(Date.now() + 12 * 3600 * 1000)); } catch { /* sem armazenamento: some só nesta sessão */ } };
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -64,7 +68,7 @@ export function AppShell({ section, title, subtitle, actions, children, data, se
       <header className="glass sticky top-0 z-20 border-b border-border/70 pt-safe">
         {isDemo && (
           <div className="flex items-center justify-center gap-2 bg-demo-soft px-3 py-1 text-xs font-bold text-demo">
-            <FlaskConical className="h-3.5 w-3.5" />MODO DEMONSTRAÇÃO: números fictícios, separados dos dados reais
+            <FlaskConical className="h-3.5 w-3.5 shrink-0" /><span className="truncate">MODO DEMONSTRAÇÃO · números fictícios</span>
           </div>
         )}
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
@@ -78,17 +82,22 @@ export function AppShell({ section, title, subtitle, actions, children, data, se
           </button>
         </div>
         {needsBackup && (
-          <button type="button" onClick={() => go("configuracoes")} className="flex w-full items-center justify-center gap-2 bg-warn-soft px-3 py-1.5 text-xs font-semibold text-warn">
-            <HardDrive className="h-3.5 w-3.5" />Dados só neste aparelho. {settings.lastBackupAt ? `Último backup há ${backupDays} dia(s).` : "Nenhum backup feito ainda."} Toque para salvar uma cópia.
-          </button>
+          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 pb-2 sm:px-6">
+            <button type="button" onClick={() => go("configuracoes")} className="press flex min-h-[40px] min-w-0 flex-1 items-center gap-2 rounded-xl bg-warn-soft px-3 text-left text-xs font-semibold text-warn">
+              <HardDrive className="h-4 w-4 shrink-0" />
+              <span className="truncate">{settings.lastBackupAt ? `Backup há ${backupDays} dia(s)` : "Sem backup"}</span>
+              <span className="ml-auto inline-flex shrink-0 items-center">Salvar cópia<ChevronRight className="h-4 w-4" /></span>
+            </button>
+            <button type="button" onClick={snooze} aria-label="Lembrar depois" className="press grid h-10 w-10 shrink-0 place-items-center rounded-xl text-warn hover:bg-warn-soft"><X className="h-4 w-4" /></button>
+          </div>
         )}
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-36 pt-4 sm:px-6 lg:pb-16">{children}</main>
+      <main className="main-pad mx-auto max-w-6xl px-4 pt-4 sm:px-6">{children}</main>
 
       {/* FAB ações rápidas */}
       <button type="button" onClick={() => setQuick(true)} aria-label="Ações rápidas"
-        className="press fixed bottom-[92px] right-4 z-30 grid h-14 w-14 place-items-center rounded-2xl gradient-brand text-white shadow-[0_12px_30px_-8px_hsl(var(--primary)/0.9)] lg:bottom-8 lg:right-8">
+        className="press fab-pos fixed right-4 z-30 grid h-14 w-14 place-items-center rounded-2xl gradient-brand text-white shadow-[0_12px_30px_-8px_hsl(var(--primary)/0.9)] lg:right-8">
         <Plus className="h-7 w-7" />
       </button>
 
@@ -99,8 +108,8 @@ export function AppShell({ section, title, subtitle, actions, children, data, se
             const active = section === n.key;
             return (
               <button key={n.key} type="button" onClick={() => go(n.key)} aria-current={active ? "page" : undefined}
-                className={cn("press flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10.5px] font-bold", active ? "text-primary" : "text-subtle")}>
-                <span className={cn("grid h-8 w-12 place-items-center rounded-full transition-colors", active && "bg-primary-soft")}><n.Icon className="h-5 w-5" /></span>
+                className={cn("press flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1 text-[11px] font-bold transition-colors", active ? "text-primary" : "text-subtle")}>
+                <span className={cn("grid h-8 w-14 place-items-center rounded-full transition-all duration-300", active ? "scale-100 bg-primary-soft" : "scale-90")}><n.Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.3 : 1.9} /></span>
                 {n.short}
               </button>
             );
@@ -159,13 +168,17 @@ function QuickActions({ open, onClose, data }: { open: boolean; onClose: () => v
     { label: "Abrir navegação", Icon: Navigation, onClick: run(() => est && window.open(mapsNavUrl(placeQuery(est)), "_blank", "noopener")), disabled: !est, sub: est ? "Google Maps a pé" : undefined },
     { label: "Responsável ausente", Icon: UserX, onClick: run(() => ns && applyStopStatus(ns.stop.id, "ausente", {})), disabled: !ns, sub: est?.name },
     { label: "Motivo de perda", Icon: ThumbsDown, onClick: run(() => ns && ui.openStopStatus(ns.stop, "sem_interesse")), disabled: !ns, sub: est?.name },
+    { label: "Consultar estoque", Icon: Boxes, onClick: run(() => go("financas/estoque")) },
+    { label: "Metas do dia", Icon: Target, onClick: run(() => go("metas")) },
+    { label: "Relatórios", Icon: BarChart3, onClick: run(() => go("relatorios")) },
+    { label: "Configurações", Icon: SettingsIcon, onClick: run(() => go("configuracoes")) },
   ];
   return (
     <Sheet open={open} onClose={onClose} title="Ações rápidas" subtitle={ns ? <>Rota ativa · próxima parada: <strong>{est?.name}</strong></> : "Nenhuma rota com paradas pendentes"}>
       <div className="grid grid-cols-2 gap-2 pb-2">
         {items.map((it) => (
           <button key={it.label} type="button" onClick={it.onClick} disabled={it.disabled}
-            className={cn("press flex min-h-[76px] flex-col items-start justify-center gap-1 rounded-2xl border px-3 py-2 text-left disabled:opacity-40", it.primary ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface-raised")}>
+            className={cn("press flex min-h-[76px] flex-col items-start justify-center gap-1 rounded-2xl border px-3 py-2 text-left disabled:opacity-40", it.primary ? "col-span-2 border-primary bg-primary text-primary-foreground" : "border-border bg-surface-raised")}>
             <it.Icon className={cn("h-5 w-5", it.primary ? "text-white" : "text-primary")} />
             <span className="text-sm font-bold leading-tight">{it.label}</span>
             {it.sub && <span className={cn("line-clamp-1 text-[11px]", it.primary ? "text-white/80" : "text-subtle")}>{it.sub}</span>}

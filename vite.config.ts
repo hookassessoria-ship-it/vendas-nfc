@@ -36,15 +36,9 @@ export default defineConfig({
   ],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   build: {
-    chunkSizeWarningLimit: 600,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          charts: ["recharts"],
-          db: ["dexie", "dexie-react-hooks"],
-        },
-      },
-    },
+    chunkSizeWarningLimit: 650,
+    // Sem manualChunks: o Rollup separa os gráficos (recharts) no chunk da tela de Relatórios,
+    // que só é baixado quando ela é aberta. O service worker pré-carrega tudo para uso offline.
   },
   test: {
     environment: "jsdom",
