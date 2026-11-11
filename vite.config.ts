@@ -31,6 +31,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,csv,xlsx}"],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // /montador é um app à parte (montagem do guarda-roupa): fica fora do cache e da navegação do Vendas NFC.
+        globIgnores: ["**/montador/**"],
+        navigateFallbackDenylist: [/^\/montador/],
       },
     }),
   ],

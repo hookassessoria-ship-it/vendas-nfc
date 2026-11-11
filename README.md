@@ -146,3 +146,14 @@ As telas nunca calculam indicadores por conta própria: tudo passa por `engine.t
 - **Isolamento por usuário.** Não há login: cada navegador ou aparelho tem seus próprios dados.
 - **Resultado operacional estimado** é gerencial: não é lucro líquido contábil nem após impostos.
 - **2 alertas moderados do `npm audit`** em ferramentas de teste (Vitest, só no Windows). Não afetam o app publicado.
+
+## Meu Montador (montagem do guarda-roupa)
+
+App separado, em `public/montador/`, que transforma o manual do **Roupeiro 8 Portas LITE** num passo a passo visual para celular. Depois do deploy fica em `/montador/`. Também abre direto do arquivo `public/montador/index.html` ou com `npx serve public/montador`.
+
+- HTML, CSS e JavaScript puros, sem build e sem dependências.
+- `data.js`: peças, ferragens, as 12 etapas e os pontos do manual que precisam de confirmação. A soma de cada ferragem nas etapas é comparada com a lista do manual na tela "Ferragens".
+- `svg.js`: ilustrações esquemáticas geradas a partir de um modelo do móvel (peça nova em amarelo, peça já montada em cinza).
+- `img/`: fotos do manual original, uma por etapa, para comparar com a ilustração.
+- O progresso fica salvo no navegador (`localStorage`). Atualizar a página não perde nada.
+- `vercel.json` e o service worker do Vendas NFC ignoram `/montador` para não abrir o app principal no lugar.
