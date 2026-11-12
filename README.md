@@ -153,6 +153,7 @@ App separado, em `public/montador/`, que transforma o manual do **Roupeiro 8 Por
 
 - HTML, CSS e JavaScript puros, sem build e sem dependências.
 - `data.js`: peças, ferragens, as 12 etapas e os pontos do manual que precisam de confirmação. A soma de cada ferragem nas etapas é comparada com a lista do manual na tela "Ferragens".
+- `tres.js`: visualização 3D de cada etapa (Three.js r128, cópia local em `vendor/`). O 3D é montado com as medidas da tabela do manual: dá para girar com o dedo, dar zoom com pinça e ver as peças novas voando até o lugar. As portas abrem na tela inicial e há modo "Ver pronto" (peças futuras transparentes) e tela cheia.
 - `svg.js`: ilustrações esquemáticas geradas a partir de um modelo do móvel (peça nova em amarelo, peça já montada em cinza).
 - `img/`: fotos do manual original, uma por etapa, para comparar com a ilustração.
 - O progresso fica salvo no navegador (`localStorage`). Atualizar a página não perde nada.

@@ -338,3 +338,25 @@ svg .card { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
   .grid-links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .actions { grid-template-columns: 1fr 2fr; }
 }
+
+/* ---------- 3D ---------- */
+.f3d { padding: 0; overflow: hidden; gap: 0; }
+.v3d { position: relative; height: min(64vh, 560px); background: #F7F8FA; overflow: hidden; touch-action: none; }
+.v3d.casa { height: min(50vh, 440px); border-radius: 20px; border: 1px solid var(--line); }
+.v3d.off { height: auto; padding: 16px; touch-action: auto; color: var(--muted); }
+.v3d-canvas { position: absolute; inset: 0; }
+.v3d-canvas canvas { width: 100%; height: 100%; display: block; }
+.v3d-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lbl3d { position: absolute; left: 0; top: 0; font: 800 14px var(--f-mono); background: var(--ink); color: var(--amber); padding: 3px 9px; border-radius: 99px; box-shadow: 0 2px 6px rgba(0,0,0,.25); white-space: nowrap; }
+.v3d-hint { position: absolute; top: 10px; left: 12px; font-size: 12px; font-weight: 600; color: var(--muted); background: rgba(255,255,255,.85); padding: 3px 8px; border-radius: 99px; pointer-events: none; }
+.v3d-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 6px; overflow-x: auto; padding: 10px; scrollbar-width: none; background: linear-gradient(transparent, rgba(247,248,250,.95) 40%); }
+.v3d-bar::-webkit-scrollbar { display: none; }
+.v3d-bar button { flex: none; min-height: 40px; padding: 0 12px; border-radius: 99px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 700; font-size: 14px; }
+.v3d-bar button.pri { background: var(--ink); color: var(--amber); border-color: var(--ink); }
+.v3d-bar button.on { background: var(--amber); border-color: var(--amber-ink); }
+.v3d.full { position: fixed; inset: 0; z-index: 80; height: auto; border-radius: 0; border: 0; padding-top: env(safe-area-inset-top, 0px); }
+.v3d.full .v3d-bar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+body.v3d-full { overflow: hidden; }
+.cap3d { padding: 10px 14px 12px; font-weight: 600; font-size: 15px; }
+.cap3d .muted { font-weight: 500; font-size: 13px; display: block; }
+.frame-tabs .t3d { padding: 0 12px; }

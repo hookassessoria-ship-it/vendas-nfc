@@ -53,7 +53,7 @@
     return `
     <main class="home">
       <div class="brand"><span class="logo" aria-hidden="true">${logo()}</span><div><h1>Meu Montador</h1><p class="sub">${esc(window.MANUAL.produto)}</p></div></div>
-      <figure class="hero">${IL.capa(true)}</figure>
+      ${window.V3D && window.V3D.ok ? window.V3D.html({ casa: true }) : `<figure class="hero">${IL.capa(true)}</figure>`}
       <div class="stats">
         <div><b>${TOTAL}</b><span>etapas</span></div>
         <div><b>${PE.length}</b><span>tipos de peça</span></div>
@@ -232,7 +232,9 @@
     const e = ET.find((x) => x.n === n);
     if (!e) return telaInicio();
     S.ultima = n; salvar();
-    const qi = Math.min(S.quadro[n] || 0, e.quadros.length - 1);
+    const qv = S.quadro[n];
+    const modo = qv === -1 ? "foto" : (qv === undefined || qv === "3d") && window.V3D && window.V3D.ok ? "3d" : "desenho";
+    const qi = modo === "desenho" ? Math.min(Number(qv) || 0, e.quadros.length - 1) : -2;
     const passosOk = e.passos.filter((_, i) => S.passos[`${n}-${i}`]).length;
     const confOk = e.conferir.filter((_, i) => S.conf[`${n}-${i}`]).length;
     const simples = S.simples;
@@ -244,8 +246,8 @@
     const pos = { deitado: "Móvel deitado", empe: "Móvel em pé", costas: "Atrás do móvel", gaveta: "Na mesa ou no chão", portas: "Portas deitadas", solto: "Peças soltas" }[e.posicao];
 
     const quadros = `<div class="frames" id="frames">
-      <div class="frame-tabs" role="tablist">${e.quadros.map((_, i) => `<button role="tab" aria-selected="${i === qi}" class="${i === qi ? "on" : ""}" data-act="quadro" data-i="${i}">${String.fromCharCode(65 + i)}</button>`).join("")}<button role="tab" aria-selected="${qi === -1}" class="foto ${S.quadro[n] === -1 ? "on" : ""}" data-act="quadro" data-i="-1">Manual</button><button class="zoombtn" data-act="zoom" aria-label="Ampliar ilustração">⤢ Ampliar</button></div>
-      ${S.quadro[n] === -1
+      <div class="frame-tabs" role="tablist">${window.V3D && window.V3D.ok ? `<button role="tab" aria-selected="${modo === "3d"}" class="t3d ${modo === "3d" ? "on" : ""}" data-act="quadro" data-i="3d">3D</button>` : ""}${e.quadros.map((_, i) => `<button role="tab" aria-selected="${i === qi}" class="${i === qi ? "on" : ""}" data-act="quadro" data-i="${i}">${String.fromCharCode(65 + i)}</button>`).join("")}<button role="tab" aria-selected="${qi === -1}" class="foto ${S.quadro[n] === -1 ? "on" : ""}" data-act="quadro" data-i="-1">Manual</button>${modo === "3d" ? "" : `<button class="zoombtn" data-act="zoom" aria-label="Ampliar ilustração">⤢ Ampliar</button>`}</div>
+      ${modo === "3d" ? `<div class="frame f3d">${window.V3D.html({})}<p class="cap3d">${esc(e.meta)} <span class="muted">Peças novas em amarelo, com o número do manual.</span></p></div>` : S.quadro[n] === -1
         ? `<figure class="frame photo"><img src="${e.foto}" alt="Página do manual, etapa ${pad(n)}" loading="lazy"><figcaption>Desenho original do manual · etapa ${pad(n)}</figcaption></figure>`
         : `<figure class="frame">${IL.quadro(e.quadros[qi])}<figcaption><b>${String.fromCharCode(65 + qi)}.</b> ${esc(e.legendas[qi])}</figcaption></figure>`}
       <div class="legend"><span><i class="sw new"></i>nesta etapa</span><span><i class="sw done"></i>já montado</span><span>Esquema simplificado</span></div>
@@ -374,6 +376,11 @@
     else html = ({ inicio: telaInicio, preparo: telaPreparo, pecas: telaPecas, ferragens: telaFerragens, etapas: telaEtapas,
       usadas: telaUsadas, confirmar: telaConfirmar, seguranca: telaSeguranca, fim: telaFim }[h] || telaInicio)();
     $app.innerHTML = `<div class="view">${html}</div>`;
+    const h3 = $app.querySelector("#v3d");
+    if (h3 && window.V3D) {
+      const n3 = h.startsWith("etapa-") ? Number(h.slice(6)) : 0;
+      window.V3D.montar(h3, n3 ? { n: n3, ghost: !!S.fantasma, onGhost: () => { S.fantasma = !S.fantasma; salvar(); redesenhar(); } } : { casa: true });
+    }
     document.body.dataset.view = h.split("-")[0];
     window.scrollTo(0, 0);
     const t = $app.querySelector("h1"); if (t) document.title = h === "inicio" ? "Meu Montador" : `${t.textContent} · Meu Montador`;
@@ -405,7 +412,7 @@
       case "inv": S.inv[a.dataset.code] = !S.inv[a.dataset.code]; salvar(); redesenhar(); break;
       case "iniciar": S.preparo = true; salvar(); ir("etapa-1"); break;
       case "simples": S.simples = !S.simples; salvar(); redesenhar(); break;
-      case "quadro": S.quadro[n] = Number(a.dataset.i); salvar(); { const y = window.scrollY; rota(); window.scrollTo(0, y); } break;
+      case "quadro": S.quadro[n] = a.dataset.i === "3d" ? "3d" : Number(a.dataset.i); salvar(); { const y = window.scrollY; rota(); window.scrollTo(0, y); } break;
       case "passo": S.passos[a.dataset.k] = !S.passos[a.dataset.k]; salvar(); redesenhar(); break;
       case "conf": S.conf[a.dataset.k] = !S.conf[a.dataset.k]; salvar(); redesenhar(); break;
       case "cartao": S.cartao[n] = Math.max(0, (S.cartao[n] || 0) + Number(a.dataset.d)); salvar(); redesenhar(); break;
@@ -413,7 +420,7 @@
       case "cartaoReset": S.cartao[n] = 0; salvar(); redesenhar(); break;
       case "rever":
         e.passos.forEach((_, i) => delete S.passos[`${n}-${i}`]);
-        S.cartao[n] = 0; S.quadro[n] = 0; salvar(); rota(); break;
+        S.cartao[n] = 0; S.quadro[n] = "3d"; salvar(); rota(); break;
       case "concluir": {
         const falta = e.conferir.filter((_, i) => !S.conf[`${n}-${i}`]).length;
         if (falta && a.dataset.forcar !== "1") {
